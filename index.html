@@ -1,38 +1,26 @@
 <!DOCTYPE html>
 <html lang="tr">
-<head>
-  <meta charset="utf-8" />
-  <title>Distortion Art</title>
+  <head>
+    <meta charset="utf-8" />
+    <title>Distortion Art</title>
 
-  <!-- Mobil için doğru ölçek -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <!-- Mobil / iPad için viewport -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
 
-  <!-- iOS: Uygulama gibi, adres çubuğu olmadan aç -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-  <meta name="apple-mobile-web-app-title" content="Distortion Art" />
+    <!-- iOS: Ana ekrandan açılınca Safari çubuğu olmadan çalışsın -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-  <!-- Ana ekrandaki ikon (opsiyonel ama güzel durur) -->
-  <!-- icon.png diye 512x512 civarı bir PNG koyarsan bunu aç -->
-  <link rel="apple-touch-icon" href="icon.png" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- p5 -->
+    <script src="p5.min.js"></script>
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: #000;
-      overflow: hidden;
-      touch-action: none; /* safari’de saçma scrollları engelle */
-    }
-    canvas {
-      display: block;
-    }
-  </style>
-
-  <!-- p5 ve senin kodun -->
-  <script src="p5.min.js"></script>
-  <script src="sketch.js"></script>
-</head>
-<body>
-</body>
+    <!-- bizim sketch -->
+    <script src="sketch.js"></script>
+  </body>
 </html>
