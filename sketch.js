@@ -3,7 +3,7 @@ let imgX, imgY;
 let imgWidth, imgHeight;
 
 // Dalga ayarları
-let AFFECTED_RADIUS = 20;
+let AFFECTED_RADIUS = 30;
 let WAVE_STRENGTH = 15;
 const WAVE_LIFETIME = 60;   // 1 sn
 const MAX_WAVES = 300;      // Bellek / FPS koruması
