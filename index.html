@@ -1,33 +1,38 @@
 <!DOCTYPE html>
 <html lang="tr">
-  <head>
-    <meta charset="utf-8" />
-    <title>Maymun Dalga Galeri</title>
+<head>
+  <meta charset="utf-8" />
+  <title>Distortion Art</title>
 
-    <!-- iPad / mobil için tam ekran ayarları -->
-    <meta
-      name="viewport"
-      content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no"
-    />
+  <!-- Ekran boyutu & zoom kapatma -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        overflow: hidden; /* Scroll yok */
-        background: #000; /* Galeri gibi siyah zemin */
-        touch-action: none; /* Safari’nin scroll / zoom hareketlerini kapatmaya yardım eder */
-      }
+  <!-- iPad / iOS için tam ekran (UI'siz) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Distortion" />
 
-      canvas {
-        display: block;
-      }
-    </style>
+  <!-- (İstersen buraya bir icon PNG koyarsın) -->
+  <!-- <link rel="apple-touch-icon" href="icon.png" /> -->
 
-    <!-- p5.js CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
-    <script src="sketch.js"></script>
-  </head>
-  <body></body>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;      /* Scroll yok */
+      touch-action: none;    /* Safari’nin default zoom / scroll hareketlerini azalt */
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+    }
+  </style>
+
+  <!-- p5 ve sketch -->
+  <script src="p5.min.js"></script>
+  <script src="sketch.js"></script>
+</head>
+<body>
+</body>
 </html>
