@@ -6,7 +6,7 @@ let imgWidth, imgHeight;
 let AFFECTED_RADIUS = 30;
 let WAVE_STRENGTH = 15;
 const WAVE_LIFETIME = 60;   // 1 sn
-const MAX_WAVES = 150;      // Bellek / FPS koruması
+const MAX_WAVES = 300;      // Bellek / FPS koruması
 const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
 // Brush için son pozisyon
@@ -16,13 +16,23 @@ let lastBrushY = null;
 let activeWaves = [];
 let baseG;
 let pg;
-let basePixels = null; // 🔹 Sabit kaynak buffer
+
+// ---- YENİ: Mod ve resimler ----
+let mode = "menu";  // "menu" veya "paint"
+let imgMaymun, imgLeopar, imgGeyik;
 
 function preload() {
-  img = loadImage('kucukMaymun.jpg');
+  // 3 resmi de önceden yükle
+  imgMaymun  = loadImage('kucukMaymun.jpg');
+  imgLeopar  = loadImage('kucukLeopar.jpg');
+  imgGeyik   = loadImage('kucukGeyik.jpg');
+
+  // Varsayılan olarak maymunu seç
+  img = imgMaymun;
 }
 
 function setup() {
+  // Tam ekran canvas
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
   setupImageBuffers();
@@ -35,7 +45,7 @@ function setup() {
   );
 }
 
-// Ekran boyutu değişince yeniden kur
+// EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) HER ŞEYİ YENİDEN AYARLA
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   setupImageBuffers();
@@ -56,9 +66,6 @@ function setupImageBuffers() {
   baseG.image(img, 0, 0, imgWidth, imgHeight);
   baseG.loadPixels();
 
-  // 🔹 Sabit kaynak buffer’ı sadece bir kez kaydediyoruz
-  basePixels = baseG.pixels.slice();
-
   pg = createGraphics(imgWidth, imgHeight);
   pg.pixelDensity(1);
 
@@ -67,7 +74,90 @@ function setupImageBuffers() {
   lastBrushY = null;
 }
 
+// ---- MENU ÇİZME ----
+function drawMenu() {
+  background(0);
+
+  textAlign(CENTER, CENTER);
+  noStroke();
+  fill(255);
+  textSize(32);
+  text("Bir görsel seç:", width / 2, height * 0.2);
+
+  let buttonWidth = min(width * 0.6, 400);
+  let buttonHeight = 60;
+  let gap = 20;
+  let totalHeight = 3 * buttonHeight + 2 * gap;
+  let startY = height / 2 - totalHeight / 2;
+
+  // Ortak stil
+  textSize(24);
+
+  // 1) Maymun
+  let bx = width / 2 - buttonWidth / 2;
+  let by = startY;
+  fill(40);
+  rect(bx, by, buttonWidth, buttonHeight, 10);
+  fill(255);
+  text("Küçük Maymun", width / 2, by + buttonHeight / 2);
+
+  // 2) Leopar
+  by += buttonHeight + gap;
+  fill(40);
+  rect(bx, by, buttonWidth, buttonHeight, 10);
+  fill(255);
+  text("Küçük Leopar", width / 2, by + buttonHeight / 2);
+
+  // 3) Geyik
+  by += buttonHeight + gap;
+  fill(40);
+  rect(bx, by, buttonWidth, buttonHeight, 10);
+  fill(255);
+  text("Küçük Geyik", width / 2, by + buttonHeight / 2);
+}
+
+// Menü tıklama / dokunma kontrolü
+function handleMenuClick(px, py) {
+  let buttonWidth = min(width * 0.6, 400);
+  let buttonHeight = 60;
+  let gap = 20;
+  let totalHeight = 3 * buttonHeight + 2 * gap;
+  let startY = height / 2 - totalHeight / 2;
+  let bx = width / 2 - buttonWidth / 2;
+
+  // 1) Maymun
+  let by1 = startY;
+  let by2 = by1 + buttonHeight + gap;
+  let by3 = by2 + buttonHeight + gap;
+
+  // Bir butonun içine tıklandı mı?
+  function inside(bx, by) {
+    return px >= bx && px <= bx + buttonWidth &&
+           py >= by && py <= by + buttonHeight;
+  }
+
+  if (inside(bx, by1)) {
+    img = imgMaymun;
+  } else if (inside(bx, by2)) {
+    img = imgLeopar;
+  } else if (inside(bx, by3)) {
+    img = imgGeyik;
+  } else {
+    return; // Hiçbirine tıklanmadıysa çık
+  }
+
+  // Birini seçtiysek:
+  setupImageBuffers(); // Seçilen görsele göre buffer'ları yeniden hazırla
+  mode = "paint";      // Artık fırça/dalga moduna geç
+}
+
 function draw() {
+  if (mode === "menu") {
+    drawMenu();
+    return;
+  }
+
+  // ---- BURADAN SONRASI PAINT MODU (ESKİ DAVRANIŞ) ----
   background(0);
 
   // Ömrü biten dalgaları temizle
@@ -78,19 +168,13 @@ function draw() {
     return;
   }
 
-  // 🔹 Artık baseG.loadPixels() yok, çünkü basePixels sabit
+  baseG.loadPixels();
   pg.loadPixels();
 
-  // 🔹 Tüm resmi tek satırda kopyala (çok hızlı)
-  pg.pixels.set(basePixels);
-
-  const radius = AFFECTED_RADIUS;
-  const radius2 = radius * radius;
-  const invRadius = 1 / radius;
-
-  const destPixels = pg.pixels;
-  const srcPixels = basePixels; // baseG değil, buffer’dan okuyacağız
-  const w = imgWidth;
+  // baseG → pg kopyala
+  for (let i = 0; i < baseG.pixels.length; i++) {
+    pg.pixels[i] = baseG.pixels[i];
+  }
 
   for (let wave of activeWaves) {
     let waveAge = frameCount - wave.startTime;
@@ -100,44 +184,44 @@ function draw() {
     let wcx = wave.x - imgX;
     let wcy = wave.y - imgY;
 
-    let minX = max(0, int(wcx - radius));
-    let maxX = min(imgWidth - 1, int(wcx + radius));
-    let minY = max(0, int(wcy - radius));
-    let maxY = min(imgHeight - 1, int(wcy + radius));
-
-    let timeFactor = waveAge * 0.5;
-    let speedFactor = wave.speed || 1.0;
+    let minX = max(0, int(wcx - AFFECTED_RADIUS));
+    let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
+    let minY = max(0, int(wcy - AFFECTED_RADIUS));
+    let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
 
     for (let y = minY; y <= maxY; y++) {
-      let dy = y - wcy;
-
       for (let x = minX; x <= maxX; x++) {
+
         let dx = x - wcx;
-        let d2 = dx * dx + dy * dy;
+        let dy = y - wcy;
+        let d = sqrt(dx * dx + dy * dy);
 
-        if (d2 < radius2) {
-          let d = Math.sqrt(d2);
+        if (d < AFFECTED_RADIUS) {
 
-          let wavePos = Math.sin(d * 0.2 + timeFactor);
+          let wavePos = sin(d * 0.2 + waveAge * 0.5);
 
-          let strengthSpatial = 1 - d * invRadius;
+          // Merkeze yakın daha güçlü + zamanla fade
+          let strengthSpatial = 1 - d / AFFECTED_RADIUS;
           let strength = strengthSpatial * fadeFactor;
+
+          // Hız bazlı güç (mouse / touch hızına göre)
+          let speedFactor = wave.speed || 1.0;
 
           let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
 
-          let angle = Math.atan2(dy, dx);
+          let angle = atan2(dy, dx);
 
-          let sx = int(x - Math.cos(angle) * displacement);
-          let sy = int(y - Math.sin(angle) * displacement);
+          let sx = int(x - cos(angle) * displacement);
+          let sy = int(y - sin(angle) * displacement);
 
           if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
-            let srcIndex = (sy * w + sx) * 4;
-            let dstIndex = (y * w + x) * 4;
+            let srcIndex = (sy * imgWidth + sx) * 4;
+            let dstIndex = (y * imgWidth + x) * 4;
 
-            destPixels[dstIndex]     = srcPixels[srcIndex];
-            destPixels[dstIndex + 1] = srcPixels[srcIndex + 1];
-            destPixels[dstIndex + 2] = srcPixels[srcIndex + 2];
-            destPixels[dstIndex + 3] = srcPixels[srcIndex + 3];
+            pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
+            pg.pixels[dstIndex + 1] = baseG.pixels[srcIndex + 1];
+            pg.pixels[dstIndex + 2] = baseG.pixels[srcIndex + 2];
+            pg.pixels[dstIndex + 3] = baseG.pixels[srcIndex + 3];
           }
         }
       }
@@ -155,16 +239,19 @@ function addBrushWave(px, py) {
     return;
   }
 
+  // İlk brush noktasıysa direkt ekle
   if (lastBrushX === null || lastBrushY === null) {
     lastBrushX = px;
     lastBrushY = py;
   }
 
+  // Aralık kontrolü – brush gibi görünmesini sağlayan kısım
   let d = dist(px, py, lastBrushX, lastBrushY);
   if (d < BRUSH_SPACING) {
-    return;
+    return; // çok yakın, yeni wave ekleme
   }
 
+  // Hız hesapla (d ne kadar büyükse, o kadar sert)
   let speedFactor = map(d, 0, 50, 0.5, 2.0);
   speedFactor = constrain(speedFactor, 0.5, 2.0);
 
@@ -175,6 +262,7 @@ function addBrushWave(px, py) {
     speed: speedFactor
   });
 
+  // Çok wave olursa eskileri at
   if (activeWaves.length > MAX_WAVES) {
     activeWaves.splice(0, activeWaves.length - MAX_WAVES);
   }
@@ -185,19 +273,42 @@ function addBrushWave(px, py) {
 
 // Mouse ile brush
 function mouseMoved() {
-  addBrushWave(mouseX, mouseY);
+  if (mode === "paint") {
+    addBrushWave(mouseX, mouseY);
+  }
   return false;
 }
 
 // Dokunarak brush (iPad)
 function touchMoved() {
-  let t = touches[0];
-  if (t) {
-    addBrushWave(t.x, t.y);
+  if (mode === "paint") {
+    let t = touches[0];
+    if (t) {
+      addBrushWave(t.x, t.y);
+    }
   }
   return false;
 }
 
+// Menü tıklama
+function mousePressed() {
+  if (mode === "menu") {
+    handleMenuClick(mouseX, mouseY);
+    return false;
+  }
+}
+
+function touchStarted() {
+  if (mode === "menu") {
+    let t = touches[0];
+    if (t) {
+      handleMenuClick(t.x, t.y);
+    }
+  }
+  return false;
+}
+
+// Dokunma / mouse bırakılınca brush başlangıcını resetle
 function mouseReleased() {
   lastBrushX = null;
   lastBrushY = null;
