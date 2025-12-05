@@ -2,36 +2,45 @@ let img;
 let imgX, imgY;
 let imgWidth, imgHeight;
 
-// Ayarlarımız
-const AFFECTED_RADIUS = 20;    // Dalga yarıçapı
-const WAVE_STRENGTH = 15;
-const WAVE_LIFETIME = 60;      // ~1 saniye
-const MAX_WAVES = 200;         // Aynı anda max dalga
-const BRUSH_SPACING = 6;       // Fırça dalgaları arası mesafe (piksel) -> daha sık, daha fırça gibi
+// Dalga ayarları
+let AFFECTED_RADIUS = 20;
+let WAVE_STRENGTH = 15;
+const WAVE_LIFETIME = 60;   // 1 sn
+const MAX_WAVES = 300;      // Bellek / FPS koruması
+const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
-// Dalga ve buffer'lar
+// Brush için son pozisyon
+let lastBrushX = null;
+let lastBrushY = null;
+
 let activeWaves = [];
 let baseG;
 let pg;
 
-// Fırça için son nokta
-let lastBrushX = null;
-let lastBrushY = null;
+const CANVAS_W = 800;
+const CANVAS_H = 600;
 
 function preload() {
-  // Repo kökünde: kucukMaymun.jpg
+  // Proje klasörü silindi, dosyalar kökte
   img = loadImage('kucukMaymun.jpg');
 }
 
 function setup() {
-  createCanvas(windowWidth, windowHeight);
+  createCanvas(CANVAS_W, CANVAS_H);
   pixelDensity(1);
   setupImageBuffers();
+
+  // iPad’de dokunurken scroll olmasın
+  // (index.html tarafında da body overflow:hidden yaptık varsayıyorum)
+  document.addEventListener(
+    'touchmove',
+    (e) => e.preventDefault(),
+    { passive: false }
+  );
 }
 
 function setupImageBuffers() {
-  // Görseli ekrana orantılı sığdır
-  let scaleFactor = min(width / img.width, height / img.height) * 0.9;
+  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
 
   imgWidth = int(img.width * scaleFactor);
   imgHeight = int(img.height * scaleFactor);
@@ -55,7 +64,7 @@ function setupImageBuffers() {
 function draw() {
   background(0);
 
-  // Süresi dolan dalgaları temizle
+  // Ömrü biten dalgaları temizle
   activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
 
   if (activeWaves.length === 0) {
@@ -73,8 +82,8 @@ function draw() {
 
   for (let wave of activeWaves) {
     let waveAge = frameCount - wave.startTime;
-    let fadeFactor = 1 - (waveAge / WAVE_LIFETIME);   // 1 → 0
-    fadeFactor = constrain(fadeFactor, 0, 1);
+    let lifeRatio = waveAge / WAVE_LIFETIME;
+    let fadeFactor = 1 - lifeRatio;
 
     let wcx = wave.x - imgX;
     let wcy = wave.y - imgY;
@@ -94,9 +103,15 @@ function draw() {
         if (d < AFFECTED_RADIUS) {
 
           let wavePos = sin(d * 0.2 + waveAge * 0.5);
-          let strength = (1 - d / AFFECTED_RADIUS) * fadeFactor;
 
-          let displacement = wavePos * WAVE_STRENGTH * strength;
+          // Merkeze yakın daha güçlü + zamanla fade
+          let strengthSpatial = 1 - d / AFFECTED_RADIUS;
+          let strength = strengthSpatial * fadeFactor;
+
+          // Hız bazlı güç (mouse / touch hızına göre)
+          let speedFactor = wave.speed || 1.0;
+
+          let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
 
           let angle = atan2(dy, dx);
 
@@ -121,74 +136,66 @@ function draw() {
   image(pg, imgX, imgY);
 }
 
-/* ---------- FIRÇA LOGİĞİ (PC + iPad) ---------- */
-
-// Ortak fırça fonksiyonu
-function handleBrush(x, y) {
-  // Görselin dışına çıktıysan fırçayı sıfırla
-  if (x < imgX || x > imgX + imgWidth || y < imgY || y > imgY + imgHeight) {
-    lastBrushX = null;
-    lastBrushY = null;
+function addBrushWave(px, py) {
+  // Görselin dışındaysa wave ekleme
+  if (!(px > imgX && px < imgX + imgWidth &&
+        py > imgY && py < imgY + imgHeight)) {
     return;
   }
 
-  // İlk nokta
-  if (lastBrushX === null) {
-    spawnWave(x, y);
-    lastBrushX = x;
-    lastBrushY = y;
-    return;
+  // İlk brush noktasıysa direkt ekle
+  if (lastBrushX === null || lastBrushY === null) {
+    lastBrushX = px;
+    lastBrushY = py;
   }
 
-  let dx = x - lastBrushX;
-  let dy = y - lastBrushY;
-  let dist = Math.sqrt(dx * dx + dy * dy);
-
-  if (dist < BRUSH_SPACING) {
-    return; // Aralık yeterli değil, yeni dalga üretme
+  // Aralık kontrolü – brush gibi görünmesini sağlayan kısım
+  let d = dist(px, py, lastBrushX, lastBrushY);
+  if (d < BRUSH_SPACING) {
+    return; // çok yakın, yeni wave ekleme
   }
 
-  // Çok hızlı hareket edildiyse araya birkaç dalga serpiştirelim
-  let steps = Math.floor(dist / BRUSH_SPACING);
-  for (let i = 1; i <= steps; i++) {
-    let t = i / steps;
-    let px = lastBrushX + dx * t;
-    let py = lastBrushY + dy * t;
-    spawnWave(px, py);
-  }
+  // Hız hesapla (d ne kadar büyükse, o kadar sert)
+  let speedFactor = map(d, 0, 50, 0.5, 2.0);
+  speedFactor = constrain(speedFactor, 0.5, 2.0);
 
-  lastBrushX = x;
-  lastBrushY = y;
-}
-
-// Yeni dalga ekleme + limit
-function spawnWave(x, y) {
   activeWaves.push({
-    x,
-    y,
-    startTime: frameCount
+    x: px,
+    y: py,
+    startTime: frameCount,
+    speed: speedFactor
   });
 
-  // Çok fazla dalga olursa en eskilerini sil
+  // Çok wave olursa eskileri at
   if (activeWaves.length > MAX_WAVES) {
-    let extra = activeWaves.length - MAX_WAVES;
-    activeWaves.splice(0, extra);
+    activeWaves.splice(0, activeWaves.length - MAX_WAVES);
   }
+
+  lastBrushX = px;
+  lastBrushY = py;
 }
 
-// PC: sadece mouse'u gezdirmek
+// Mouse ile brush
 function mouseMoved() {
-  handleBrush(mouseX, mouseY);
+  addBrushWave(mouseX, mouseY);
+  return false; // bazı tarayıcılarda ekstra scroll'u önleyebilir
 }
 
-// iPad / dokunmatik: parmak hareketi
+// Dokunarak brush (iPad)
 function touchMoved() {
-  handleBrush(mouseX, mouseY); // p5, touch'ta da mouseX/mouseY güncelliyor
-  return false; // sayfanın scroll yapmasını engelle
+  let t = touches[0];
+  if (t) {
+    addBrushWave(t.x, t.y);
+  }
+  return false; // touch scroll'u engelle
 }
 
-// Pencere boyutu değişince iPad + PC’de tam ekran koru
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-  setupImageBuffers();
+// Dokunma / mouse bırakılınca brush başlangıcını resetle
+function mouseReleased() {
+  lastBrushX = null;
+  lastBrushY = null;
+}
+function touchEnded() {
+  lastBrushX = null;
+  lastBrushY = null;
 }
