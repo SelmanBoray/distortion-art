@@ -17,8 +17,8 @@ let activeWaves = [];
 let baseG;
 let pg;
 
-const CANVAS_W = 800;
-const CANVAS_H = 600;
+const CANVAS_W = 2360;
+const CANVAS_H = 1640;
 
 function preload() {
   // Proje klasörü silindi, dosyalar kökte
