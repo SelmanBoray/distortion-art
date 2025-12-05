@@ -2,12 +2,12 @@ let img;
 let imgX, imgY;
 let imgWidth, imgHeight;
 
-// Belleğe yazdığımız ayarlar
-const AFFECTED_RADIUS = 20;   // dalga yarıçapı
-const WAVE_STRENGTH = 15;     // dalga gücü
-const WAVE_LIFETIME = 60;     // 1 sn (60 fps varsayımı)
-const MAX_WAVES = 300;        // aynı anda en fazla kaç dalga olsun
-const BRUSH_SPACING = 5;      // fırça dalgaları arası mesafe (pixel)
+// Ayarlarımız
+const AFFECTED_RADIUS = 20;    // Dalga yarıçapı
+const WAVE_STRENGTH = 15;
+const WAVE_LIFETIME = 60;      // ~1 saniye
+const MAX_WAVES = 200;         // Aynı anda max dalga
+const BRUSH_SPACING = 6;       // Fırça dalgaları arası mesafe (piksel) -> daha sık, daha fırça gibi
 
 // Dalga ve buffer'lar
 let activeWaves = [];
@@ -30,43 +30,34 @@ function setup() {
 }
 
 function setupImageBuffers() {
-  // Görseli ekrana oranlı sığdır
-  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
+  // Görseli ekrana orantılı sığdır
+  let scaleFactor = min(width / img.width, height / img.height) * 0.9;
 
-  imgWidth  = int(img.width  * scaleFactor);
+  imgWidth = int(img.width * scaleFactor);
   imgHeight = int(img.height * scaleFactor);
 
-  imgX = int((width  - imgWidth)  / 2);
+  imgX = int((width - imgWidth) / 2);
   imgY = int((height - imgHeight) / 2);
 
-  // Kaynak buffer (bozulmamış görüntü)
   baseG = createGraphics(imgWidth, imgHeight);
   baseG.pixelDensity(1);
   baseG.image(img, 0, 0, imgWidth, imgHeight);
   baseG.loadPixels();
 
-  // Çıktı buffer
   pg = createGraphics(imgWidth, imgHeight);
   pg.pixelDensity(1);
 
-  // Fırça state reset
   activeWaves = [];
   lastBrushX = null;
   lastBrushY = null;
 }
 
-function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
-  setupImageBuffers();
-}
-
 function draw() {
   background(0);
 
-  // Süresi dolan dalgaları sil
+  // Süresi dolan dalgaları temizle
   activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
 
-  // Dalga kalmadıysa direkt görseli bas
   if (activeWaves.length === 0) {
     image(baseG, imgX, imgY);
     return;
@@ -80,45 +71,40 @@ function draw() {
     pg.pixels[i] = baseG.pixels[i];
   }
 
-  // Her dalgayı uygula
   for (let wave of activeWaves) {
-    let age = frameCount - wave.startTime;
-    let fadeFactor = 1 - (age / WAVE_LIFETIME); // zamanla sönme
+    let waveAge = frameCount - wave.startTime;
+    let fadeFactor = 1 - (waveAge / WAVE_LIFETIME);   // 1 → 0
     fadeFactor = constrain(fadeFactor, 0, 1);
 
-    let waveCenterX = wave.x - imgX;
-    let waveCenterY = wave.y - imgY;
+    let wcx = wave.x - imgX;
+    let wcy = wave.y - imgY;
 
-    let minX = max(0, int(waveCenterX - AFFECTED_RADIUS));
-    let maxX = min(imgWidth - 1, int(waveCenterX + AFFECTED_RADIUS));
-    let minY = max(0, int(waveCenterY - AFFECTED_RADIUS));
-    let maxY = min(imgHeight - 1, int(waveCenterY + AFFECTED_RADIUS));
+    let minX = max(0, int(wcx - AFFECTED_RADIUS));
+    let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
+    let minY = max(0, int(wcy - AFFECTED_RADIUS));
+    let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
 
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
 
-        let dx = x - waveCenterX;
-        let dy = y - waveCenterY;
-        let d = Math.sqrt(dx * dx + dy * dy);
+        let dx = x - wcx;
+        let dy = y - wcy;
+        let d = sqrt(dx * dx + dy * dy);
 
         if (d < AFFECTED_RADIUS) {
-          let wavePos = Math.sin(d * 0.2 + age * 0.5);
 
-          let strengthFactor = 1 - (d / AFFECTED_RADIUS);
+          let wavePos = sin(d * 0.2 + waveAge * 0.5);
+          let strength = (1 - d / AFFECTED_RADIUS) * fadeFactor;
 
-          // fırça dalgası: hem yarıçapa göre, hem zamana göre sönüyor
-          let displacement = wavePos * WAVE_STRENGTH * strengthFactor * fadeFactor;
+          let displacement = wavePos * WAVE_STRENGTH * strength;
 
-          let angle = Math.atan2(dy, dx);
+          let angle = atan2(dy, dx);
 
-          let sourceX = int(x - Math.cos(angle) * displacement);
-          let sourceY = int(y - Math.sin(angle) * displacement);
+          let sx = int(x - cos(angle) * displacement);
+          let sy = int(y - sin(angle) * displacement);
 
-          if (
-            sourceX >= 0 && sourceX < imgWidth &&
-            sourceY >= 0 && sourceY < imgHeight
-          ) {
-            let srcIndex = (sourceY * imgWidth + sourceX) * 4;
+          if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
+            let srcIndex = (sy * imgWidth + sx) * 4;
             let dstIndex = (y * imgWidth + x) * 4;
 
             pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
@@ -135,61 +121,74 @@ function draw() {
   image(pg, imgX, imgY);
 }
 
-/* ---------- Fırça / giriş kısmı ---------- */
+/* ---------- FIRÇA LOGİĞİ (PC + iPad) ---------- */
 
-function addBrushWave(x, y) {
-  // Görselin dışındaysa uğraşma
+// Ortak fırça fonksiyonu
+function handleBrush(x, y) {
+  // Görselin dışına çıktıysan fırçayı sıfırla
   if (x < imgX || x > imgX + imgWidth || y < imgY || y > imgY + imgHeight) {
+    lastBrushX = null;
+    lastBrushY = null;
     return;
   }
 
-  // Fırça mesafesi kontrolü (dalgalar arası mesafeyi azaltmak / çoğaltmak için BRUSH_SPACING)
-  if (lastBrushX !== null && lastBrushY !== null) {
-    let d = dist(x, y, lastBrushX, lastBrushY);
-    if (d < BRUSH_SPACING) {
-      return;
-    }
+  // İlk nokta
+  if (lastBrushX === null) {
+    spawnWave(x, y);
+    lastBrushX = x;
+    lastBrushY = y;
+    return;
+  }
+
+  let dx = x - lastBrushX;
+  let dy = y - lastBrushY;
+  let dist = Math.sqrt(dx * dx + dy * dy);
+
+  if (dist < BRUSH_SPACING) {
+    return; // Aralık yeterli değil, yeni dalga üretme
+  }
+
+  // Çok hızlı hareket edildiyse araya birkaç dalga serpiştirelim
+  let steps = Math.floor(dist / BRUSH_SPACING);
+  for (let i = 1; i <= steps; i++) {
+    let t = i / steps;
+    let px = lastBrushX + dx * t;
+    let py = lastBrushY + dy * t;
+    spawnWave(px, py);
   }
 
   lastBrushX = x;
   lastBrushY = y;
+}
 
+// Yeni dalga ekleme + limit
+function spawnWave(x, y) {
   activeWaves.push({
-    x: x,
-    y: y,
+    x,
+    y,
     startTime: frameCount
   });
 
-  // Çok fazla wave birikmesin
+  // Çok fazla dalga olursa en eskilerini sil
   if (activeWaves.length > MAX_WAVES) {
-    activeWaves.shift();
+    let extra = activeWaves.length - MAX_WAVES;
+    activeWaves.splice(0, extra);
   }
 }
 
-// Mouse ile
-function mouseDragged() {
-  addBrushWave(mouseX, mouseY);
-  return false; // sayfanın seçilmesini engelle
+// PC: sadece mouse'u gezdirmek
+function mouseMoved() {
+  handleBrush(mouseX, mouseY);
 }
 
-function mousePressed() {
-  addBrushWave(mouseX, mouseY);
-  return false;
-}
-
-// Dokunmatik ile (iPad, telefon)
+// iPad / dokunmatik: parmak hareketi
 function touchMoved() {
-  if (touches.length > 0) {
-    let t = touches[0];
-    addBrushWave(t.x, t.y);
-  }
-  return false; // sayfa scroll olmasın
+  handleBrush(mouseX, mouseY); // p5, touch'ta da mouseX/mouseY güncelliyor
+  return false; // sayfanın scroll yapmasını engelle
 }
 
-function touchStarted() {
-  if (touches.length > 0) {
-    let t = touches[0];
-    addBrushWave(t.x, t.y);
-  }
-  return false;
+// Pencere boyutu değişince iPad + PC’de tam ekran koru
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
+  setupImageBuffers();
 }
