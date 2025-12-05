@@ -23,9 +23,9 @@ let imgMaymun, imgLeopar, imgGeyik;
 
 function preload() {
   // 3 resmi de önceden yükle
-  imgMaymun  = loadImage('kucukMaymun.jpg');
-  imgLeopar  = loadImage('kucukLeopar.jpg');
-  imgGeyik   = loadImage('kucukGeyik.jpg');
+  imgMaymun  = loadImage('Maymun.jpg');
+  imgLeopar  = loadImage('Leopar.jpg');
+  imgGeyik   = loadImage('Geyik.jpg');
 
   // Varsayılan olarak maymunu seç
   img = imgMaymun;
