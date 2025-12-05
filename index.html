@@ -4,32 +4,32 @@
   <meta charset="utf-8" />
   <title>Distortion Art</title>
 
-  <!-- Ekran boyutu & zoom kapatma -->
+  <!-- Mobil için doğru ölçek -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 
-  <!-- iPad / iOS için tam ekran (UI'siz) -->
+  <!-- iOS: Uygulama gibi, adres çubuğu olmadan aç -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Distortion" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="Distortion Art" />
 
-  <!-- (İstersen buraya bir icon PNG koyarsın) -->
-  <!-- <link rel="apple-touch-icon" href="icon.png" /> -->
+  <!-- Ana ekrandaki ikon (opsiyonel ama güzel durur) -->
+  <!-- icon.png diye 512x512 civarı bir PNG koyarsan bunu aç -->
+  <link rel="apple-touch-icon" href="icon.png" />
 
   <style>
     html, body {
       margin: 0;
       padding: 0;
       background: #000;
-      overflow: hidden;      /* Scroll yok */
-      touch-action: none;    /* Safari’nin default zoom / scroll hareketlerini azalt */
+      overflow: hidden;
+      touch-action: none; /* safari’de saçma scrollları engelle */
     }
     canvas {
       display: block;
-      margin: 0 auto;
     }
   </style>
 
-  <!-- p5 ve sketch -->
+  <!-- p5 ve senin kodun -->
   <script src="p5.min.js"></script>
   <script src="sketch.js"></script>
 </head>
