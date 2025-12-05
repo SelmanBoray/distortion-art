@@ -1,17 +1,12 @@
-html,
-body {
+html, body {
   margin: 0;
   padding: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden; /* scroll yok */
-  background: #000;
-  touch-action: none; /* iOS’ta kaydırma / zoom engelle */
+  background-color: #000;
+  overflow: hidden; /* scroll bar yok */
+  touch-action: none; /* iPad'de sayfa kaydırma yerine canvas'a öncelik */
 }
 
-/* p5 canvas */
 canvas {
   display: block;
-  margin: 0;
-  padding: 0;
+  margin: 0 auto;
 }
