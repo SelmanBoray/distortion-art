@@ -173,7 +173,7 @@ function drawBackButton() {
   fill(255);
   textAlign(LEFT, CENTER);
   textSize(18);
-  text("← Menüye dön", bx + 12, by + BACK_BTN_H / 2);
+  text("←", bx + 12, by + BACK_BTN_H / 2);
 }
 
 function isInsideBackButton(px, py) {
