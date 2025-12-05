@@ -23,12 +23,12 @@ function preload() {
 }
 
 function setup() {
-  // 🔹 1) Tam ekran canvas (iPad / PC fark etmez)
+  // 🔹 ARTIK SABİT DEĞİL, TAM EKRAN CANVAS
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
   setupImageBuffers();
 
-  // iPad’de dokunurken scroll / zoom olmasın
+  // iPad’de dokunurken sayfa kaymasın
   document.addEventListener(
     'touchmove',
     (e) => e.preventDefault(),
@@ -36,15 +36,15 @@ function setup() {
   );
 }
 
-// 🔹 2) Pencere boyutu değişince (iPad döndürme dahil) yeniden uyum
+// 🔹 EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) HER ŞEYİ YENİDEN AYARLA
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   setupImageBuffers();
 }
 
 function setupImageBuffers() {
-  // 🔹 3) Görseli ekrana oranlı sığdır, boşluk minimum (0.98 ile hafif margin)
-  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.98;
+  // Görseli ekrana oranlı sığdır (kenarlardan %10 boşluk)
+  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
 
   imgWidth = int(img.width * scaleFactor);
   imgHeight = int(img.height * scaleFactor);
