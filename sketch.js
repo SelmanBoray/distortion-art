@@ -2,19 +2,19 @@ let img;
 let imgX, imgY;
 let imgWidth, imgHeight;
 
-// Belleğe kaydettiğimiz ayarlar
-const AFFECTED_RADIUS = 20;
-const WAVE_STRENGTH = 15;
-const WAVE_LIFETIME = 60; // ~1 saniye
-const MAX_WAVES = 200;    // aynı anda en fazla bu kadar dalga
-const BRUSH_SPACING = 10; // fırça dalga aralığı (piksel)
+// Belleğe yazdığımız ayarlar
+const AFFECTED_RADIUS = 20;   // dalga yarıçapı
+const WAVE_STRENGTH = 15;     // dalga gücü
+const WAVE_LIFETIME = 60;     // 1 sn (60 fps varsayımı)
+const MAX_WAVES = 300;        // aynı anda en fazla kaç dalga olsun
+const BRUSH_SPACING = 5;      // fırça dalgaları arası mesafe (pixel)
 
 // Dalga ve buffer'lar
 let activeWaves = [];
 let baseG;
 let pg;
 
-// Fırça için son noktayı hatırlayalım
+// Fırça için son nokta
 let lastBrushX = null;
 let lastBrushY = null;
 
@@ -31,15 +31,15 @@ function setup() {
 
 function setupImageBuffers() {
   // Görseli ekrana oranlı sığdır
-  let scaleFactor = min(width / img.width, height / img.height) * 0.9;
+  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
 
-  imgWidth = int(img.width * scaleFactor);
+  imgWidth  = int(img.width  * scaleFactor);
   imgHeight = int(img.height * scaleFactor);
 
-  imgX = int((width - imgWidth) / 2);
+  imgX = int((width  - imgWidth)  / 2);
   imgY = int((height - imgHeight) / 2);
 
-  // Kaynak buffer (ölçeklenmiş orijinal)
+  // Kaynak buffer (bozulmamış görüntü)
   baseG = createGraphics(imgWidth, imgHeight);
   baseG.pixelDensity(1);
   baseG.image(img, 0, 0, imgWidth, imgHeight);
@@ -49,6 +49,7 @@ function setupImageBuffers() {
   pg = createGraphics(imgWidth, imgHeight);
   pg.pixelDensity(1);
 
+  // Fırça state reset
   activeWaves = [];
   lastBrushX = null;
   lastBrushY = null;
@@ -62,9 +63,10 @@ function windowResized() {
 function draw() {
   background(0);
 
-  // Süresi dolan dalgaları temizle
+  // Süresi dolan dalgaları sil
   activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
 
+  // Dalga kalmadıysa direkt görseli bas
   if (activeWaves.length === 0) {
     image(baseG, imgX, imgY);
     return;
@@ -78,37 +80,45 @@ function draw() {
     pg.pixels[i] = baseG.pixels[i];
   }
 
+  // Her dalgayı uygula
   for (let wave of activeWaves) {
     let age = frameCount - wave.startTime;
-    let fade = 1 - (age / WAVE_LIFETIME);
-    fade = constrain(fade, 0, 1);
+    let fadeFactor = 1 - (age / WAVE_LIFETIME); // zamanla sönme
+    fadeFactor = constrain(fadeFactor, 0, 1);
 
-    let wcx = wave.x - imgX;
-    let wcy = wave.y - imgY;
+    let waveCenterX = wave.x - imgX;
+    let waveCenterY = wave.y - imgY;
 
-    let minX = max(0, int(wcx - AFFECTED_RADIUS));
-    let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
-    let minY = max(0, int(wcy - AFFECTED_RADIUS));
-    let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
+    let minX = max(0, int(waveCenterX - AFFECTED_RADIUS));
+    let maxX = min(imgWidth - 1, int(waveCenterX + AFFECTED_RADIUS));
+    let minY = max(0, int(waveCenterY - AFFECTED_RADIUS));
+    let maxY = min(imgHeight - 1, int(waveCenterY + AFFECTED_RADIUS));
 
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
-        let dx = x - wcx;
-        let dy = y - wcy;
-        let d = sqrt(dx * dx + dy * dy);
+
+        let dx = x - waveCenterX;
+        let dy = y - waveCenterY;
+        let d = Math.sqrt(dx * dx + dy * dy);
 
         if (d < AFFECTED_RADIUS) {
-          let wavePos = sin(d * 0.2 + age * 0.5);
-          let strength = (1 - d / AFFECTED_RADIUS) * fade;
-          let displacement = wavePos * WAVE_STRENGTH * strength;
+          let wavePos = Math.sin(d * 0.2 + age * 0.5);
 
-          let angle = atan2(dy, dx);
+          let strengthFactor = 1 - (d / AFFECTED_RADIUS);
 
-          let sx = int(x - cos(angle) * displacement);
-          let sy = int(y - sin(angle) * displacement);
+          // fırça dalgası: hem yarıçapa göre, hem zamana göre sönüyor
+          let displacement = wavePos * WAVE_STRENGTH * strengthFactor * fadeFactor;
 
-          if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
-            let srcIndex = (sy * imgWidth + sx) * 4;
+          let angle = Math.atan2(dy, dx);
+
+          let sourceX = int(x - Math.cos(angle) * displacement);
+          let sourceY = int(y - Math.sin(angle) * displacement);
+
+          if (
+            sourceX >= 0 && sourceX < imgWidth &&
+            sourceY >= 0 && sourceY < imgHeight
+          ) {
+            let srcIndex = (sourceY * imgWidth + sourceX) * 4;
             let dstIndex = (y * imgWidth + x) * 4;
 
             pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
@@ -125,58 +135,61 @@ function draw() {
   image(pg, imgX, imgY);
 }
 
-// Ortak fırça fonksiyonu (mouse + touch burayı kullanacak)
-function addBrushWave(screenX, screenY) {
-  // Görselin üstünde miyiz?
-  if (!(screenX > imgX && screenX < imgX + imgWidth &&
-        screenY > imgY && screenY < imgY + imgHeight)) {
+/* ---------- Fırça / giriş kısmı ---------- */
+
+function addBrushWave(x, y) {
+  // Görselin dışındaysa uğraşma
+  if (x < imgX || x > imgX + imgWidth || y < imgY || y > imgY + imgHeight) {
     return;
   }
 
-  // Fırça aralığı kontrolü
+  // Fırça mesafesi kontrolü (dalgalar arası mesafeyi azaltmak / çoğaltmak için BRUSH_SPACING)
   if (lastBrushX !== null && lastBrushY !== null) {
-    let d = dist(screenX, screenY, lastBrushX, lastBrushY);
+    let d = dist(x, y, lastBrushX, lastBrushY);
     if (d < BRUSH_SPACING) {
       return;
     }
   }
 
-  lastBrushX = screenX;
-  lastBrushY = screenY;
-
-  // Dalga sayısını limitla
-  if (activeWaves.length >= MAX_WAVES) {
-    activeWaves.shift(); // en eskiyi at
-  }
+  lastBrushX = x;
+  lastBrushY = y;
 
   activeWaves.push({
-    x: screenX,
-    y: screenY,
+    x: x,
+    y: y,
     startTime: frameCount
   });
+
+  // Çok fazla wave birikmesin
+  if (activeWaves.length > MAX_WAVES) {
+    activeWaves.shift();
+  }
 }
 
-// Mouse fırça (masaüstü)
-function mouseMoved() {
-  addBrushWave(mouseX, mouseY);
-}
-
-// İlk tıklamada da dalga olsun
+// Mouse ile
 function mouseDragged() {
   addBrushWave(mouseX, mouseY);
+  return false; // sayfanın seçilmesini engelle
 }
 
-// Touch fırça (iPad / telefon)
+function mousePressed() {
+  addBrushWave(mouseX, mouseY);
+  return false;
+}
+
+// Dokunmatik ile (iPad, telefon)
 function touchMoved() {
-  for (let t of touches) {
+  if (touches.length > 0) {
+    let t = touches[0];
     addBrushWave(t.x, t.y);
   }
-  return false; // iOS scroll / zoom yapmasın
+  return false; // sayfa scroll olmasın
 }
 
 function touchStarted() {
   if (touches.length > 0) {
-    addBrushWave(touches[0].x, touches[0].y);
+    let t = touches[0];
+    addBrushWave(t.x, t.y);
   }
   return false;
 }
