@@ -7,7 +7,7 @@ let AFFECTED_RADIUS = 20;
 let WAVE_STRENGTH = 15;
 const WAVE_LIFETIME = 60;   // 1 sn
 const MAX_WAVES = 300;      // Bellek / FPS koruması
-const BRUSH_SPACING = 4;    // Dalgalar arası mesafe (daha fırça gibi)
+const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
 // Brush için son pozisyon
 let lastBrushX = null;
@@ -17,23 +17,34 @@ let activeWaves = [];
 let baseG;
 let pg;
 
-// İstersen sabit bırakabiliriz, şu an preview’de iyiydi
-const CANVAS_W = 800;
-const CANVAS_H = 600;
-
 function preload() {
   // Repo kökünde: kucukMaymun.jpg
   img = loadImage('kucukMaymun.jpg');
 }
 
 function setup() {
-  createCanvas(CANVAS_W, CANVAS_H);
+  // 🔹 1) Tam ekran canvas (iPad / PC fark etmez)
+  createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
+  setupImageBuffers();
+
+  // iPad’de dokunurken scroll / zoom olmasın
+  document.addEventListener(
+    'touchmove',
+    (e) => e.preventDefault(),
+    { passive: false }
+  );
+}
+
+// 🔹 2) Pencere boyutu değişince (iPad döndürme dahil) yeniden uyum
+function windowResized() {
+  resizeCanvas(windowWidth, windowHeight);
   setupImageBuffers();
 }
 
 function setupImageBuffers() {
-  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
+  // 🔹 3) Görseli ekrana oranlı sığdır, boşluk minimum (0.98 ile hafif margin)
+  let scaleFactor = Math.min(width / img.width, height / img.height) * 0.98;
 
   imgWidth = int(img.width * scaleFactor);
   imgHeight = int(img.height * scaleFactor);
@@ -129,7 +140,6 @@ function draw() {
   image(pg, imgX, imgY);
 }
 
-// Ortak brush fonksiyonu
 function addBrushWave(px, py) {
   // Görselin dışındaysa wave ekleme
   if (!(px > imgX && px < imgX + imgWidth &&
@@ -137,19 +147,19 @@ function addBrushWave(px, py) {
     return;
   }
 
-  // İlk brush noktasıysa
+  // İlk brush noktasıysa direkt ekle
   if (lastBrushX === null || lastBrushY === null) {
     lastBrushX = px;
     lastBrushY = py;
   }
 
-  // Aralık kontrolü – brush efekti
+  // Aralık kontrolü – brush gibi görünmesini sağlayan kısım
   let d = dist(px, py, lastBrushX, lastBrushY);
   if (d < BRUSH_SPACING) {
     return; // çok yakın, yeni wave ekleme
   }
 
-  // Hız faktörü
+  // Hız hesapla (d ne kadar büyükse, o kadar sert)
   let speedFactor = map(d, 0, 50, 0.5, 2.0);
   speedFactor = constrain(speedFactor, 0.5, 2.0);
 
@@ -169,51 +179,27 @@ function addBrushWave(px, py) {
   lastBrushY = py;
 }
 
-/* --------- Mouse tarafı --------- */
-
-// Sadece gezdirirken
+// Mouse ile brush
 function mouseMoved() {
   addBrushWave(mouseX, mouseY);
   return false;
 }
 
-// Basılı tutup sürüklerken de çalışsın
-function mouseDragged() {
-  addBrushWave(mouseX, mouseY);
+// Dokunarak brush (iPad)
+function touchMoved() {
+  let t = touches[0];
+  if (t) {
+    addBrushWave(t.x, t.y);
+  }
   return false;
 }
 
-// İlk tıklamada da wave gelsin istersek
-function mousePressed() {
-  addBrushWave(mouseX, mouseY);
-  return false;
-}
-
+// Dokunma / mouse bırakılınca brush başlangıcını resetle
 function mouseReleased() {
   lastBrushX = null;
   lastBrushY = null;
 }
-
-/* --------- Touch (iPad) tarafı --------- */
-
-function touchStarted() {
-  if (touches.length > 0) {
-    let t = touches[0];
-    addBrushWave(t.x, t.y);
-  }
-  return false; // iOS scroll / zoom’u engelle
-}
-
-function touchMoved() {
-  if (touches.length > 0) {
-    let t = touches[0];
-    addBrushWave(t.x, t.y);
-  }
-  return false;
-}
-
 function touchEnded() {
   lastBrushX = null;
   lastBrushY = null;
-  return false;
 }
