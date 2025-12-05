@@ -1,33 +1,15 @@
-/* ===============================
-        GLOBAL STATE
-=============================== */
-
-let appState = "menu";   // "menu" or "app"
-
-let menuImages = [];
-let menuOptions = [
-  { name: "Goril", file: "Goril.jpg" },
-  { name: "Geyik", file: "Geyik.jpg" },
-  { name: "Leopar", file: "Leopar.jpg" }
-];
-
-let selectedImageFile = null;
-
-
-/* ===============================
-       DISTORTION VARIABLES
-=============================== */
-
 let img;
 let imgX, imgY;
 let imgWidth, imgHeight;
 
+// Dalga ayarları
 let AFFECTED_RADIUS = 30;
 let WAVE_STRENGTH = 15;
-const WAVE_LIFETIME = 60;
-const MAX_WAVES = 300;
-const BRUSH_SPACING = 6;
+const WAVE_LIFETIME = 60;   // 1 sn
+const MAX_WAVES = 300;      // Bellek / FPS koruması
+const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
+// Brush için son pozisyon
 let lastBrushX = null;
 let lastBrushY = null;
 
@@ -35,146 +17,42 @@ let activeWaves = [];
 let baseG;
 let pg;
 
-
-/* ===============================
-            PRELOAD
-=============================== */
+// ---- Mod ve resimler ----
+let mode = "menu";  // "menu" veya "paint"
+let imgGoril, imgLeopar, imgAntilop;
 
 function preload() {
-  // Menüde görüntülenecek 3 resim
-  menuImages = [
-    loadImage("Goril.jpg"),
-    loadImage("Geyik.jpg"),
-    loadImage("Leopar.jpg")
-  ];
+  // 3 resmi de önceden yükle (dosya isimleri aynı)
+  imgGoril   = loadImage('kucukMaymun.jpg');   // Goril görseli
+  imgLeopar  = loadImage('kucukLeopar.jpg');   // Leopar görseli
+  imgAntilop = loadImage('kucukGeyik.jpg');    // Antilop görseli
+
+  // Varsayılan olarak gorili seç
+  img = imgGoril;
 }
-
-
-/* ===============================
-            SETUP
-=============================== */
 
 function setup() {
+  // Tam ekran canvas
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
+  setupImageBuffers();
 
-  document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+  // iPad’de dokunurken sayfa kaymasın
+  document.addEventListener(
+    'touchmove',
+    (e) => e.preventDefault(),
+    { passive: false }
+  );
 }
 
-
-/* ===============================
-            WINDOW RESIZE
-=============================== */
-
+// EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) HER ŞEYİ YENİDEN AYARLA
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-
-  if (appState === "app") {
-    setupImageBuffers();
-  }
+  setupImageBuffers();
 }
-
-
-/* ===============================
-         DRAW (STATE MACHINE)
-=============================== */
-
-function draw() {
-  if (appState === "menu") {
-    drawMenu();
-    return;
-  }
-
-  if (appState === "app") {
-    drawDistortion();
-    return;
-  }
-}
-
-
-/* ===============================
-            MENU DRAW
-=============================== */
-
-function drawMenu() {
-  background(0);
-
-  textAlign(CENTER, CENTER);
-  textSize(40);
-  fill(255);
-  text("Bir Görsel Seç", width / 2, 80);
-
-  let spacing = width / 3;
-  let y = height / 2;
-
-  for (let i = 0; i < 3; i++) {
-    let x = spacing * (i + 0.5);
-
-    let imgW = width * 0.25;
-    let imgH = imgW * 0.75;
-
-    // Görsel
-    imageMode(CENTER);
-    image(menuImages[i], x, y, imgW, imgH);
-
-    // İsim
-    fill(255);
-    textSize(28);
-    text(menuOptions[i].name, x, y + imgH / 2 + 40);
-  }
-}
-
-
-/* ===============================
-          MENU CLICK / TOUCH
-=============================== */
-
-function mousePressed() {
-  if (appState === "menu") handleMenuPress(mouseX, mouseY);
-}
-
-function touchStarted() {
-  if (appState === "menu") handleMenuPress(touches[0].x, touches[0].y);
-}
-
-function handleMenuPress(px, py) {
-  let spacing = width / 3;
-  let y = height / 2;
-  let imgW = width * 0.25;
-  let imgH = imgW * 0.75;
-
-  for (let i = 0; i < 3; i++) {
-    let x = spacing * (i + 0.5);
-
-    if (px > x - imgW/2 && px < x + imgW/2 &&
-        py > y - imgH/2 && py < y + imgH/2) {
-
-      selectedImageFile = menuOptions[i].file;
-      loadSelectedImage();
-      return;
-    }
-  }
-}
-
-
-/* ===============================
-       LOAD SELECTED IMAGE
-=============================== */
-
-function loadSelectedImage() {
-  img = loadImage(selectedImageFile, () => {
-    appState = "app";
-    setupImageBuffers();
-  });
-}
-
-
-/* ===============================
-       DISTORTION SETUP
-=============================== */
 
 function setupImageBuffers() {
-
+  // Görseli ekrana oranlı sığdır (kenarlardan %10 boşluk)
   let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
 
   imgWidth = int(img.width * scaleFactor);
@@ -196,14 +74,95 @@ function setupImageBuffers() {
   lastBrushY = null;
 }
 
-
-/* ===============================
-        DISTORTION DRAW
-=============================== */
-
-function drawDistortion() {
+// ---- MENU ÇİZME ----
+function drawMenu() {
   background(0);
 
+  textAlign(CENTER, CENTER);
+  noStroke();
+  fill(255);
+  textSize(32);
+  text("Bir görsel seç:", width / 2, height * 0.2);
+
+  let buttonWidth = min(width * 0.6, 400);
+  let buttonHeight = 60;
+  let gap = 20;
+  let totalHeight = 3 * buttonHeight + 2 * gap;
+  let startY = height / 2 - totalHeight / 2;
+
+  // Ortak stil
+  textSize(24);
+
+  let bx = width / 2 - buttonWidth / 2;
+  let by = startY;
+
+  // 1) Goril
+  fill(40);
+  rect(bx, by, buttonWidth, buttonHeight, 10);
+  fill(255);
+  text("Goril", width / 2, by + buttonHeight / 2);
+
+  // 2) Leopar
+  by += buttonHeight + gap;
+  fill(40);
+  rect(bx, by, buttonWidth, buttonHeight, 10);
+  fill(255);
+  text("Leopar", width / 2, by + buttonHeight / 2);
+
+  // 3) Antilop
+  by += buttonHeight + gap;
+  fill(40);
+  rect(bx, by, buttonWidth, buttonHeight, 10);
+  fill(255);
+  text("Antilop", width / 2, by + buttonHeight / 2);
+}
+
+// Menü tıklama / dokunma kontrolü
+function handleMenuClick(px, py) {
+  let buttonWidth = min(width * 0.6, 400);
+  let buttonHeight = 60;
+  let gap = 20;
+  let totalHeight = 3 * buttonHeight + 2 * gap;
+  let startY = height / 2 - totalHeight / 2;
+  let bx = width / 2 - buttonWidth / 2;
+
+  // 1) Goril
+  let by1 = startY;
+  // 2) Leopar
+  let by2 = by1 + buttonHeight + gap;
+  // 3) Antilop
+  let by3 = by2 + buttonHeight + gap;
+
+  function inside(bx, by) {
+    return px >= bx && px <= bx + buttonWidth &&
+           py >= by && py <= by + buttonHeight;
+  }
+
+  if (inside(bx, by1)) {
+    img = imgGoril;
+  } else if (inside(bx, by2)) {
+    img = imgLeopar;
+  } else if (inside(bx, by3)) {
+    img = imgAntilop;
+  } else {
+    return; // Hiçbirine tıklanmadıysa çık
+  }
+
+  // Birini seçtiysek:
+  setupImageBuffers(); // Seçilen görsele göre buffer'ları yeniden hazırla
+  mode = "paint";      // Artık fırça/dalga moduna geç
+}
+
+function draw() {
+  if (mode === "menu") {
+    drawMenu();
+    return;
+  }
+
+  // ---- PAINT MODU ----
+  background(0);
+
+  // Ömrü biten dalgaları temizle
   activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
 
   if (activeWaves.length === 0) {
@@ -214,57 +173,149 @@ function drawDistortion() {
   baseG.loadPixels();
   pg.loadPixels();
 
+  // baseG → pg kopyala
   for (let i = 0; i < baseG.pixels.length; i++) {
     pg.pixels[i] = baseG.pixels[i];
   }
 
   for (let wave of activeWaves) {
-    applyWave(wave);
+    let waveAge = frameCount - wave.startTime;
+    let lifeRatio = waveAge / WAVE_LIFETIME;
+    let fadeFactor = 1 - lifeRatio;
+
+    let wcx = wave.x - imgX;
+    let wcy = wave.y - imgY;
+
+    let minX = max(0, int(wcx - AFFECTED_RADIUS));
+    let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
+    let minY = max(0, int(wcy - AFFECTED_RADIUS));
+    let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
+
+    for (let y = minY; y <= maxY; y++) {
+      for (let x = minX; x <= maxX; x++) {
+
+        let dx = x - wcx;
+        let dy = y - wcy;
+        let d = sqrt(dx * dx + dy * dy);
+
+        if (d < AFFECTED_RADIUS) {
+
+          let wavePos = sin(d * 0.2 + waveAge * 0.5);
+
+          // Merkeze yakın daha güçlü + zamanla fade
+          let strengthSpatial = 1 - d / AFFECTED_RADIUS;
+          let strength = strengthSpatial * fadeFactor;
+
+          // Hız bazlı güç (mouse / touch hızına göre)
+          let speedFactor = wave.speed || 1.0;
+
+          let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
+
+          let angle = atan2(dy, dx);
+
+          let sx = int(x - cos(angle) * displacement);
+          let sy = int(y - sin(angle) * displacement);
+
+          if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
+            let srcIndex = (sy * imgWidth + sx) * 4;
+            let dstIndex = (y * imgWidth + x) * 4;
+
+            pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
+            pg.pixels[dstIndex + 1] = baseG.pixels[srcIndex + 1];
+            pg.pixels[dstIndex + 2] = baseG.pixels[srcIndex + 2];
+            pg.pixels[dstIndex + 3] = baseG.pixels[srcIndex + 3];
+          }
+        }
+      }
+    }
   }
 
   pg.updatePixels();
   image(pg, imgX, imgY);
 }
 
+function addBrushWave(px, py) {
+  // Görselin dışındaysa wave ekleme
+  if (!(px > imgX && px < imgX + imgWidth &&
+        py > imgY && py < imgY + imgHeight)) {
+    return;
+  }
 
-/* ===============================
-          APPLY WAVE
-=============================== */
+  // İlk brush noktasıysa direkt ekle
+  if (lastBrushX === null || lastBrushY === null) {
+    lastBrushX = px;
+    lastBrushY = py;
+  }
 
-function applyWave(wave) {
-  let waveAge = frameCount - wave.startTime;
-  let fadeFactor = 1 - (waveAge / WAVE_LIFETIME);
+  // Aralık kontrolü – brush gibi görünmesini sağlayan kısım
+  let d = dist(px, py, lastBrushX, lastBrushY);
+  if (d < BRUSH_SPACING) {
+    return; // çok yakın, yeni wave ekleme
+  }
 
-  let wcx = wave.x - imgX;
-  let wcy = wave.y - imgY;
+  // Hız hesapla (d ne kadar büyükse, o kadar sert)
+  let speedFactor = map(d, 0, 50, 0.5, 2.0);
+  speedFactor = constrain(speedFactor, 0.5, 2.0);
 
-  let minX = max(0, int(wcx - AFFECTED_RADIUS));
-  let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
-  let minY = max(0, int(wcy - AFFECTED_RADIUS));
-  let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
+  activeWaves.push({
+    x: px,
+    y: py,
+    startTime: frameCount,
+    speed: speedFactor
+  });
 
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
+  // Çok wave olursa eskileri at
+  if (activeWaves.length > MAX_WAVES) {
+    activeWaves.splice(0, activeWaves.length - MAX_WAVES);
+  }
 
-      let dx = x - wcx;
-      let dy = y - wcy;
-      let d = sqrt(dx * dx + dy * dy);
+  lastBrushX = px;
+  lastBrushY = py;
+}
 
-      if (d < AFFECTED_RADIUS) {
+// Mouse ile brush
+function mouseMoved() {
+  if (mode === "paint") {
+    addBrushWave(mouseX, mouseY);
+  }
+  return false;
+}
 
-        let wavePos = sin(d * 0.2 + waveAge * 0.5);
+// Dokunarak brush (iPad)
+function touchMoved() {
+  if (mode === "paint") {
+    let t = touches[0];
+    if (t) {
+      addBrushWave(t.x, t.y);
+    }
+  }
+  return false;
+}
 
-        let strengthSpatial = 1 - d / AFFECTED_RADIUS;
-        let strength = strengthSpatial * fadeFactor;
+// Menü tıklama
+function mousePressed() {
+  if (mode === "menu") {
+    handleMenuClick(mouseX, mouseY);
+    return false;
+  }
+}
 
-        let speedFactor = wave.speed || 1.0;
-        let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
+function touchStarted() {
+  if (mode === "menu") {
+    let t = touches[0];
+    if (t) {
+      handleMenuClick(t.x, t.y);
+    }
+  }
+  return false;
+}
 
-        let angle = atan2(dy, dx);
-
-        let sx = int(x - cos(angle) * displacement);
-        let sy = int(y - sin(angle) * displacement);
-
-        if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
-
-          let srcIndex = (sy * i*
+// Dokunma / mouse bırakılınca brush başlangıcını resetle
+function mouseReleased() {
+  lastBrushX = null;
+  lastBrushY = null;
+}
+function touchEnded() {
+  lastBrushX = null;
+  lastBrushY = null;
+}
