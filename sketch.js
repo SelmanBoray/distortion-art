@@ -16,14 +16,13 @@ let lastBrushY = null;
 let activeWaves = [];
 let baseG;
 let pg;
+let basePixels = null; // 🔹 Sabit kaynak buffer
 
 function preload() {
-  // Repo kökünde: kucukMaymun.jpg
   img = loadImage('kucukMaymun.jpg');
 }
 
 function setup() {
-  // 🔹 ARTIK SABİT DEĞİL, TAM EKRAN CANVAS
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
   setupImageBuffers();
@@ -36,7 +35,7 @@ function setup() {
   );
 }
 
-// 🔹 EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) HER ŞEYİ YENİDEN AYARLA
+// Ekran boyutu değişince yeniden kur
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   setupImageBuffers();
@@ -57,6 +56,9 @@ function setupImageBuffers() {
   baseG.image(img, 0, 0, imgWidth, imgHeight);
   baseG.loadPixels();
 
+  // 🔹 Sabit kaynak buffer’ı sadece bir kez kaydediyoruz
+  basePixels = baseG.pixels.slice();
+
   pg = createGraphics(imgWidth, imgHeight);
   pg.pixelDensity(1);
 
@@ -76,13 +78,19 @@ function draw() {
     return;
   }
 
-  baseG.loadPixels();
+  // 🔹 Artık baseG.loadPixels() yok, çünkü basePixels sabit
   pg.loadPixels();
 
-  // baseG → pg kopyala
-  for (let i = 0; i < baseG.pixels.length; i++) {
-    pg.pixels[i] = baseG.pixels[i];
-  }
+  // 🔹 Tüm resmi tek satırda kopyala (çok hızlı)
+  pg.pixels.set(basePixels);
+
+  const radius = AFFECTED_RADIUS;
+  const radius2 = radius * radius;
+  const invRadius = 1 / radius;
+
+  const destPixels = pg.pixels;
+  const srcPixels = basePixels; // baseG değil, buffer’dan okuyacağız
+  const w = imgWidth;
 
   for (let wave of activeWaves) {
     let waveAge = frameCount - wave.startTime;
@@ -92,44 +100,44 @@ function draw() {
     let wcx = wave.x - imgX;
     let wcy = wave.y - imgY;
 
-    let minX = max(0, int(wcx - AFFECTED_RADIUS));
-    let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
-    let minY = max(0, int(wcy - AFFECTED_RADIUS));
-    let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
+    let minX = max(0, int(wcx - radius));
+    let maxX = min(imgWidth - 1, int(wcx + radius));
+    let minY = max(0, int(wcy - radius));
+    let maxY = min(imgHeight - 1, int(wcy + radius));
+
+    let timeFactor = waveAge * 0.5;
+    let speedFactor = wave.speed || 1.0;
 
     for (let y = minY; y <= maxY; y++) {
+      let dy = y - wcy;
+
       for (let x = minX; x <= maxX; x++) {
-
         let dx = x - wcx;
-        let dy = y - wcy;
-        let d = sqrt(dx * dx + dy * dy);
+        let d2 = dx * dx + dy * dy;
 
-        if (d < AFFECTED_RADIUS) {
+        if (d2 < radius2) {
+          let d = Math.sqrt(d2);
 
-          let wavePos = sin(d * 0.2 + waveAge * 0.5);
+          let wavePos = Math.sin(d * 0.2 + timeFactor);
 
-          // Merkeze yakın daha güçlü + zamanla fade
-          let strengthSpatial = 1 - d / AFFECTED_RADIUS;
+          let strengthSpatial = 1 - d * invRadius;
           let strength = strengthSpatial * fadeFactor;
-
-          // Hız bazlı güç (mouse / touch hızına göre)
-          let speedFactor = wave.speed || 1.0;
 
           let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
 
-          let angle = atan2(dy, dx);
+          let angle = Math.atan2(dy, dx);
 
-          let sx = int(x - cos(angle) * displacement);
-          let sy = int(y - sin(angle) * displacement);
+          let sx = int(x - Math.cos(angle) * displacement);
+          let sy = int(y - Math.sin(angle) * displacement);
 
           if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
-            let srcIndex = (sy * imgWidth + sx) * 4;
-            let dstIndex = (y * imgWidth + x) * 4;
+            let srcIndex = (sy * w + sx) * 4;
+            let dstIndex = (y * w + x) * 4;
 
-            pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
-            pg.pixels[dstIndex + 1] = baseG.pixels[srcIndex + 1];
-            pg.pixels[dstIndex + 2] = baseG.pixels[srcIndex + 2];
-            pg.pixels[dstIndex + 3] = baseG.pixels[srcIndex + 3];
+            destPixels[dstIndex]     = srcPixels[srcIndex];
+            destPixels[dstIndex + 1] = srcPixels[srcIndex + 1];
+            destPixels[dstIndex + 2] = srcPixels[srcIndex + 2];
+            destPixels[dstIndex + 3] = srcPixels[srcIndex + 3];
           }
         }
       }
@@ -147,19 +155,16 @@ function addBrushWave(px, py) {
     return;
   }
 
-  // İlk brush noktasıysa direkt ekle
   if (lastBrushX === null || lastBrushY === null) {
     lastBrushX = px;
     lastBrushY = py;
   }
 
-  // Aralık kontrolü – brush gibi görünmesini sağlayan kısım
   let d = dist(px, py, lastBrushX, lastBrushY);
   if (d < BRUSH_SPACING) {
-    return; // çok yakın, yeni wave ekleme
+    return;
   }
 
-  // Hız hesapla (d ne kadar büyükse, o kadar sert)
   let speedFactor = map(d, 0, 50, 0.5, 2.0);
   speedFactor = constrain(speedFactor, 0.5, 2.0);
 
@@ -170,7 +175,6 @@ function addBrushWave(px, py) {
     speed: speedFactor
   });
 
-  // Çok wave olursa eskileri at
   if (activeWaves.length > MAX_WAVES) {
     activeWaves.splice(0, activeWaves.length - MAX_WAVES);
   }
@@ -194,7 +198,6 @@ function touchMoved() {
   return false;
 }
 
-// Dokunma / mouse bırakılınca brush başlangıcını resetle
 function mouseReleased() {
   lastBrushX = null;
   lastBrushY = null;
