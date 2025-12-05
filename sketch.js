@@ -4,9 +4,9 @@ let imgWidth, imgHeight;
 
 // Dalga ayarları
 let AFFECTED_RADIUS = 30;
-let WAVE_STRENGTH = 20;
+let WAVE_STRENGTH = 15;
 const WAVE_LIFETIME = 60;   // 1 sn
-const MAX_WAVES = 20;      // Bellek / FPS koruması
+const MAX_WAVES = 300;      // Bellek / FPS koruması
 const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
 // Brush için son pozisyon
@@ -19,16 +19,20 @@ let pg;
 
 // ---- Mod ve resimler ----
 let mode = "menu";  // "menu" veya "paint"
-let imgGoril, imgLeopar, imgAntilop;
+let imgGoril, imgLeopar, imgAntilop; // dosyalar hala kucukMaymun/Leopar/Geyik ama isimlendirme sana göre
+
+// ---- Geri Dön Butonu (paint ekranı) ----
+const BACK_BTN_W = 180;
+const BACK_BTN_H = 46;
+const BACK_BTN_MARGIN = 20; // ekrandan boşluk
 
 function preload() {
   // 3 resmi de önceden yükle
-  // Eğer dosya isimlerini değiştirdiysen, burayı ona göre düzenle:
-  imgGoril    = loadImage('kucukMaymun.jpg');  // veya 'Goril.jpg'
-  imgLeopar   = loadImage('kucukLeopar.jpg');  // veya 'Leopar.jpg'
-  imgAntilop  = loadImage('kucukGeyik.jpg');   // veya 'Antilop.jpg'
+  imgGoril   = loadImage('kucukMaymun.jpg');  // Goril
+  imgLeopar  = loadImage('kucukLeopar.jpg');  // Leopar
+  imgAntilop = loadImage('kucukGeyik.jpg');   // Antilop
 
-  // Varsayılan olarak Goril seçili olsun
+  // Varsayılan olarak gorili seç
   img = imgGoril;
 }
 
@@ -36,9 +40,7 @@ function setup() {
   // Tam ekran canvas
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
-
-  // MENÜDEYKEN buffer kurmuyoruz, kullanıcı bir görsel seçince kuracağız.
-  // setupImageBuffers();  <-- BİLEREK YOK
+  setupImageBuffers();
 
   // iPad’de dokunurken sayfa kaymasın
   document.addEventListener(
@@ -48,12 +50,10 @@ function setup() {
   );
 }
 
-// EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) – sadece paint modunda yeniden hesapla
+// EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) HER ŞEYİ YENİDEN AYARLA
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  if (mode === "paint" && img) {
-    setupImageBuffers();
-  }
+  setupImageBuffers();
 }
 
 function setupImageBuffers() {
@@ -150,14 +150,44 @@ function handleMenuClick(px, py) {
   } else if (inside(bx, by3)) {
     img = imgAntilop;
   } else {
-    return; // Hiçbirine tıklanmadıysa çık
+    return; // hiçbir butona tıklanmadı
   }
 
-  // Birini seçtiysek:
-  setupImageBuffers(); // Seçilen görsele göre buffer'ları yeniden hazırla
-  mode = "paint";      // Artık fırça/dalga moduna geç
+  setupImageBuffers(); // seçilen görsele göre buffer'ları hazırla
+  mode = "paint";      // artı fırça/dalga moduna geç
 }
 
+// ---- GERİ DÖN BUTONU ----
+
+function drawBackButton() {
+  let bx = BACK_BTN_MARGIN;
+  let by = BACK_BTN_MARGIN;
+
+  noStroke();
+  fill(0, 0, 0, 150);
+  rect(bx - 4, by - 4, BACK_BTN_W + 8, BACK_BTN_H + 8, 12);
+
+  fill(30, 30, 30, 220);
+  rect(bx, by, BACK_BTN_W, BACK_BTN_H, 10);
+
+  fill(255);
+  textAlign(LEFT, CENTER);
+  textSize(18);
+  text("← Menüye dön", bx + 12, by + BACK_BTN_H / 2);
+}
+
+function isInsideBackButton(px, py) {
+  let bx = BACK_BTN_MARGIN;
+  let by = BACK_BTN_MARGIN;
+  return (
+    px >= bx &&
+    px <= bx + BACK_BTN_W &&
+    py >= by &&
+    py <= by + BACK_BTN_H
+  );
+}
+
+// ---- ANA DRAW ----
 function draw() {
   if (mode === "menu") {
     drawMenu();
@@ -168,10 +198,14 @@ function draw() {
   background(0);
 
   // Ömrü biten dalgaları temizle
-  activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
+  activeWaves = activeWaves.filter(
+    (w) => frameCount - w.startTime < WAVE_LIFETIME
+  );
 
   if (activeWaves.length === 0) {
     image(baseG, imgX, imgY);
+    // Paint ekranda da menüye dön butonunu sürekli görelim
+    drawBackButton();
     return;
   }
 
@@ -237,6 +271,9 @@ function draw() {
 
   pg.updatePixels();
   image(pg, imgX, imgY);
+
+  // Paint modunda her frame geri dön butonunu çiz
+  drawBackButton();
 }
 
 function addBrushWave(px, py) {
@@ -297,11 +334,21 @@ function touchMoved() {
   return false;
 }
 
-// Menü tıklama
+// Menü tıklama + paint ekranındaki geri butonu
 function mousePressed() {
   if (mode === "menu") {
     handleMenuClick(mouseX, mouseY);
     return false;
+  } else if (mode === "paint") {
+    // Önce geri butonuna mı basıldı kontrol et
+    if (isInsideBackButton(mouseX, mouseY)) {
+      // Menüye dön
+      mode = "menu";
+      activeWaves = [];
+      lastBrushX = null;
+      lastBrushY = null;
+      return false;
+    }
   }
 }
 
@@ -310,6 +357,16 @@ function touchStarted() {
     let t = touches[0];
     if (t) {
       handleMenuClick(t.x, t.y);
+    }
+    return false;
+  } else if (mode === "paint") {
+    let t = touches[0];
+    if (t && isInsideBackButton(t.x, t.y)) {
+      mode = "menu";
+      activeWaves = [];
+      lastBrushX = null;
+      lastBrushY = null;
+      return false;
     }
   }
   return false;
@@ -320,6 +377,7 @@ function mouseReleased() {
   lastBrushX = null;
   lastBrushY = null;
 }
+
 function touchEnded() {
   lastBrushX = null;
   lastBrushY = null;
