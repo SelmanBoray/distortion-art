@@ -6,7 +6,7 @@ let imgWidth, imgHeight;
 let AFFECTED_RADIUS = 30;
 let WAVE_STRENGTH = 15;
 const WAVE_LIFETIME = 60;   // 1 sn
-const MAX_WAVES = 20;      // Bellek / FPS koruması
+const MAX_WAVES = 300;      // Bellek / FPS koruması
 const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
 // Brush için son pozisyon
@@ -19,21 +19,21 @@ let pg;
 
 // ---- Mod ve resimler ----
 let mode = "menu";  // "menu" veya "paint"
-let imgGoril, imgLeopar, imgAntilop; // dosyalar hala kucukMaymun/Leopar/Geyik ama isimlendirme sana göre
+let imgMaymun, imgLeopar, imgGeyik;
 
-// ---- Geri Dön Butonu (paint ekranı) ----
-const BACK_BTN_W = 180;
-const BACK_BTN_H = 46;
-const BACK_BTN_MARGIN = 20; // ekrandan boşluk
+// ---- Geri ok butonu için ----
+let backBtnSize = 0;
+let backBtnX = 0;
+let backBtnY = 0;
 
 function preload() {
   // 3 resmi de önceden yükle
-  imgGoril   = loadImage('kucukMaymun.jpg');  // Goril
-  imgLeopar  = loadImage('kucukLeopar.jpg');  // Leopar
-  imgAntilop = loadImage('kucukGeyik.jpg');   // Antilop
+  imgMaymun  = loadImage('kucukMaymun.jpg');
+  imgLeopar  = loadImage('kucukLeopar.jpg');
+  imgGeyik   = loadImage('kucukGeyik.jpg');
 
-  // Varsayılan olarak gorili seç
-  img = imgGoril;
+  // Varsayılan olarak maymunu seç
+  img = imgMaymun;
 }
 
 function setup() {
@@ -57,6 +57,8 @@ function windowResized() {
 }
 
 function setupImageBuffers() {
+  if (!img) return;
+
   // Görseli ekrana oranlı sığdır (kenarlardan %10 boşluk)
   let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
 
@@ -101,7 +103,7 @@ function drawMenu() {
   let bx = width / 2 - buttonWidth / 2;
   let by = startY;
 
-  // 1) Goril
+  // 1) Goril (eski Küçük Maymun)
   fill(40);
   rect(bx, by, buttonWidth, buttonHeight, 10);
   fill(255);
@@ -114,7 +116,7 @@ function drawMenu() {
   fill(255);
   text("Leopar", width / 2, by + buttonHeight / 2);
 
-  // 3) Antilop
+  // 3) Antilop (eski Küçük Geyik)
   by += buttonHeight + gap;
   fill(40);
   rect(bx, by, buttonWidth, buttonHeight, 10);
@@ -144,67 +146,79 @@ function handleMenuClick(px, py) {
   }
 
   if (inside(bx, by1)) {
-    img = imgGoril;
+    img = imgMaymun;
   } else if (inside(bx, by2)) {
     img = imgLeopar;
   } else if (inside(bx, by3)) {
-    img = imgAntilop;
+    img = imgGeyik;
   } else {
-    return; // hiçbir butona tıklanmadı
+    return; // Hiçbirine tıklanmadı
   }
 
-  setupImageBuffers(); // seçilen görsele göre buffer'ları hazırla
-  mode = "paint";      // artı fırça/dalga moduna geç
+  setupImageBuffers(); // Seçilen görsele göre buffer'ları yeniden hazırla
+  mode = "paint";      // Artık fırça/dalga moduna geç
 }
 
-// ---- GERİ DÖN BUTONU ----
-
+// ---- Geri ok butonu çizimi ----
 function drawBackButton() {
-  let bx = BACK_BTN_MARGIN;
-  let by = BACK_BTN_MARGIN;
+  // Paint modunda her frame pozisyon / boyutu güncelle
+  backBtnSize = min(width, height) * 0.08;
+  let margin = backBtnSize * 0.4;
+  backBtnX = margin;
+  backBtnY = margin;
 
+  push();
+  // Arka plan (yarı saydam kutu)
   noStroke();
-  fill(0, 0, 0, 150);
-  rect(bx - 4, by - 4, BACK_BTN_W + 8, BACK_BTN_H + 8, 12);
+  fill(0, 150);
+  rect(backBtnX, backBtnY, backBtnSize, backBtnSize, backBtnSize * 0.3);
 
-  fill(30, 30, 30, 220);
-  rect(bx, by, BACK_BTN_W, BACK_BTN_H, 10);
+  // Beyaz geri ok
+  stroke(255);
+  strokeWeight(backBtnSize * 0.12);
+  strokeCap(ROUND);
+  noFill();
 
-  fill(255);
-  textAlign(LEFT, CENTER);
-  textSize(18);
-  text("←", bx + 12, by + BACK_BTN_H / 2);
+  let centerY = backBtnY + backBtnSize * 0.5;
+  let xRight = backBtnX + backBtnSize * 0.65;
+  let xMid   = backBtnX + backBtnSize * 0.4;
+  let yTop   = backBtnY + backBtnSize * 0.3;
+  let yBot   = backBtnY + backBtnSize * 0.7;
+
+  // Yatay çizgi
+  line(xRight, centerY, xMid, centerY);
+  // Ok kanatları
+  line(xMid, centerY, xRight - backBtnSize * 0.18, yTop);
+  line(xMid, centerY, xRight - backBtnSize * 0.18, yBot);
+
+  pop();
 }
 
-function isInsideBackButton(px, py) {
-  let bx = BACK_BTN_MARGIN;
-  let by = BACK_BTN_MARGIN;
+function isOverBackButton(px, py) {
+  if (backBtnSize <= 0) return false;
   return (
-    px >= bx &&
-    px <= bx + BACK_BTN_W &&
-    py >= by &&
-    py <= by + BACK_BTN_H
+    px >= backBtnX &&
+    px <= backBtnX + backBtnSize &&
+    py >= backBtnY &&
+    py <= backBtnY + backBtnSize
   );
 }
 
-// ---- ANA DRAW ----
 function draw() {
   if (mode === "menu") {
     drawMenu();
     return;
   }
 
-  // ---- BURADAN SONRASI PAINT MODU ----
+  // ---- PAINT MODU ----
   background(0);
 
   // Ömrü biten dalgaları temizle
-  activeWaves = activeWaves.filter(
-    (w) => frameCount - w.startTime < WAVE_LIFETIME
-  );
+  activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
 
   if (activeWaves.length === 0) {
     image(baseG, imgX, imgY);
-    // Paint ekranda da menüye dön butonunu sürekli görelim
+    // Menüye dön oku her durumda görünür olsun istiyorsan burada da çizebilirsin
     drawBackButton();
     return;
   }
@@ -272,7 +286,7 @@ function draw() {
   pg.updatePixels();
   image(pg, imgX, imgY);
 
-  // Paint modunda her frame geri dön butonunu çiz
+  // PAINT modunda geri ok çiz
   drawBackButton();
 }
 
@@ -334,15 +348,14 @@ function touchMoved() {
   return false;
 }
 
-// Menü tıklama + paint ekranındaki geri butonu
+// Menü tıklama / geri ok
 function mousePressed() {
   if (mode === "menu") {
     handleMenuClick(mouseX, mouseY);
     return false;
   } else if (mode === "paint") {
-    // Önce geri butonuna mı basıldı kontrol et
-    if (isInsideBackButton(mouseX, mouseY)) {
-      // Menüye dön
+    // Geri ok'a basıldıysa menüye dön
+    if (isOverBackButton(mouseX, mouseY)) {
       mode = "menu";
       activeWaves = [];
       lastBrushX = null;
@@ -358,10 +371,9 @@ function touchStarted() {
     if (t) {
       handleMenuClick(t.x, t.y);
     }
-    return false;
   } else if (mode === "paint") {
     let t = touches[0];
-    if (t && isInsideBackButton(t.x, t.y)) {
+    if (t && isOverBackButton(t.x, t.y)) {
       mode = "menu";
       activeWaves = [];
       lastBrushX = null;
@@ -377,7 +389,6 @@ function mouseReleased() {
   lastBrushX = null;
   lastBrushY = null;
 }
-
 function touchEnded() {
   lastBrushX = null;
   lastBrushY = null;
