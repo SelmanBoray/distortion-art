@@ -22,12 +22,13 @@ let mode = "menu";  // "menu" veya "paint"
 let imgGoril, imgLeopar, imgAntilop;
 
 function preload() {
-  // 3 resmi de önceden yükle (dosya isimleri aynı)
-  imgGoril   = loadImage('kucukMaymun.jpg');   // Goril görseli
-  imgLeopar  = loadImage('kucukLeopar.jpg');   // Leopar görseli
-  imgAntilop = loadImage('kucukGeyik.jpg');    // Antilop görseli
+  // 3 resmi de önceden yükle
+  // Eğer dosya isimlerini değiştirdiysen, burayı ona göre düzenle:
+  imgGoril    = loadImage('kucukMaymun.jpg');  // veya 'Goril.jpg'
+  imgLeopar   = loadImage('kucukLeopar.jpg');  // veya 'Leopar.jpg'
+  imgAntilop  = loadImage('kucukGeyik.jpg');   // veya 'Antilop.jpg'
 
-  // Varsayılan olarak gorili seç
+  // Varsayılan olarak Goril seçili olsun
   img = imgGoril;
 }
 
@@ -35,7 +36,9 @@ function setup() {
   // Tam ekran canvas
   createCanvas(windowWidth, windowHeight);
   pixelDensity(1);
-  setupImageBuffers();
+
+  // MENÜDEYKEN buffer kurmuyoruz, kullanıcı bir görsel seçince kuracağız.
+  // setupImageBuffers();  <-- BİLEREK YOK
 
   // iPad’de dokunurken sayfa kaymasın
   document.addEventListener(
@@ -45,10 +48,12 @@ function setup() {
   );
 }
 
-// EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) HER ŞEYİ YENİDEN AYARLA
+// EKRAN BOYUTU DEĞİŞİNCE (iPad rotate vs.) – sadece paint modunda yeniden hesapla
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
-  setupImageBuffers();
+  if (mode === "paint" && img) {
+    setupImageBuffers();
+  }
 }
 
 function setupImageBuffers() {
@@ -159,7 +164,7 @@ function draw() {
     return;
   }
 
-  // ---- PAINT MODU ----
+  // ---- BURADAN SONRASI PAINT MODU ----
   background(0);
 
   // Ömrü biten dalgaları temizle
