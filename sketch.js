@@ -21,10 +21,9 @@ let pg;
 let mode = "menu";  // "menu" veya "paint"
 let imgMaymun, imgLeopar, imgGeyik;
 
-// ---- Geri ok butonu için ----
-let backBtnSize = 0;
-let backBtnX = 0;
-let backBtnY = 0;
+// Geri ok butonu için ayarlar
+const BACK_SIZE = 50;
+const BACK_MARGIN = 20;
 
 function preload() {
   // 3 resmi de önceden yükle
@@ -57,8 +56,6 @@ function windowResized() {
 }
 
 function setupImageBuffers() {
-  if (!img) return;
-
   // Görseli ekrana oranlı sığdır (kenarlardan %10 boşluk)
   let scaleFactor = Math.min(width / img.width, height / img.height) * 0.9;
 
@@ -100,10 +97,9 @@ function drawMenu() {
   // Ortak stil
   textSize(24);
 
+  // 1) Goril (eski Maymun)
   let bx = width / 2 - buttonWidth / 2;
   let by = startY;
-
-  // 1) Goril (eski Küçük Maymun)
   fill(40);
   rect(bx, by, buttonWidth, buttonHeight, 10);
   fill(255);
@@ -116,7 +112,7 @@ function drawMenu() {
   fill(255);
   text("Leopar", width / 2, by + buttonHeight / 2);
 
-  // 3) Antilop (eski Küçük Geyik)
+  // 3) Antilop (eski Geyik)
   by += buttonHeight + gap;
   fill(40);
   rect(bx, by, buttonWidth, buttonHeight, 10);
@@ -140,9 +136,10 @@ function handleMenuClick(px, py) {
   // 3) Antilop
   let by3 = by2 + buttonHeight + gap;
 
-  function inside(bx, by) {
-    return px >= bx && px <= bx + buttonWidth &&
-           py >= by && py <= by + buttonHeight;
+  // Bir butonun içine tıklandı mı?
+  function inside(bxLocal, byLocal) {
+    return px >= bxLocal && px <= bxLocal + buttonWidth &&
+           py >= byLocal && py <= byLocal + buttonHeight;
   }
 
   if (inside(bx, by1)) {
@@ -152,76 +149,60 @@ function handleMenuClick(px, py) {
   } else if (inside(bx, by3)) {
     img = imgGeyik;
   } else {
-    return; // Hiçbirine tıklanmadı
+    return; // Hiçbirine tıklanmadıysa çık
   }
 
+  // Birini seçtiysek:
   setupImageBuffers(); // Seçilen görsele göre buffer'ları yeniden hazırla
   mode = "paint";      // Artık fırça/dalga moduna geç
 }
 
-// ---- Geri ok butonu çizimi ----
+// ---- GERİ OK BUTONU ----
 function drawBackButton() {
-  // Paint modunda her frame pozisyon / boyutu güncelle
-  backBtnSize = min(width, height) * 0.08;
-  let margin = backBtnSize * 0.4;
-  backBtnX = margin;
-  backBtnY = margin;
-
   push();
-  // Arka plan (yarı saydam kutu)
+  // Arka plan kutusu
   noStroke();
-  fill(0, 150);
-  rect(backBtnX, backBtnY, backBtnSize, backBtnSize, backBtnSize * 0.3);
+  fill(0, 160); // hafif transparan siyah
+  rect(BACK_MARGIN, BACK_MARGIN, BACK_SIZE, BACK_SIZE, 14);
 
-  // Beyaz geri ok
+  // Ok ikonu
+  translate(BACK_MARGIN + BACK_SIZE / 2, BACK_MARGIN + BACK_SIZE / 2);
   stroke(255);
-  strokeWeight(backBtnSize * 0.12);
-  strokeCap(ROUND);
+  strokeWeight(3);
   noFill();
 
-  let centerY = backBtnY + backBtnSize * 0.5;
-  let xRight = backBtnX + backBtnSize * 0.65;
-  let xMid   = backBtnX + backBtnSize * 0.4;
-  let yTop   = backBtnY + backBtnSize * 0.3;
-  let yBot   = backBtnY + backBtnSize * 0.7;
-
-  // Yatay çizgi
-  line(xRight, centerY, xMid, centerY);
-  // Ok kanatları
-  line(xMid, centerY, xRight - backBtnSize * 0.18, yTop);
-  line(xMid, centerY, xRight - backBtnSize * 0.18, yBot);
+  // Gövde çizgisi
+  line(8, 0, -4, 0);
+  // Okun uç kısmı (sola bakan)
+  line(-4, 0, 2, -6);
+  line(-4, 0, 2, 6);
 
   pop();
 }
 
-function isOverBackButton(px, py) {
-  if (backBtnSize <= 0) return false;
+function isInsideBackButton(px, py) {
   return (
-    px >= backBtnX &&
-    px <= backBtnX + backBtnSize &&
-    py >= backBtnY &&
-    py <= backBtnY + backBtnSize
+    px >= BACK_MARGIN &&
+    px <= BACK_MARGIN + BACK_SIZE &&
+    py >= BACK_MARGIN &&
+    py <= BACK_MARGIN + BACK_SIZE
   );
 }
 
+// ---- ANA DRAW ----
 function draw() {
   if (mode === "menu") {
     drawMenu();
     return;
   }
 
-  // ---- PAINT MODU ----
+  // ---- BURADAN SONRASI PAINT MODU (ESKİ DAVRANIŞ) ----
   background(0);
 
   // Ömrü biten dalgaları temizle
-  activeWaves = activeWaves.filter(w => (frameCount - w.startTime) < WAVE_LIFETIME);
-
-  if (activeWaves.length === 0) {
-    image(baseG, imgX, imgY);
-    // Menüye dön oku her durumda görünür olsun istiyorsan burada da çizebilirsin
-    drawBackButton();
-    return;
-  }
+  activeWaves = activeWaves.filter(
+    (w) => frameCount - w.startTime < WAVE_LIFETIME
+  );
 
   baseG.loadPixels();
   pg.loadPixels();
@@ -231,52 +212,52 @@ function draw() {
     pg.pixels[i] = baseG.pixels[i];
   }
 
-  for (let wave of activeWaves) {
-    let waveAge = frameCount - wave.startTime;
-    let lifeRatio = waveAge / WAVE_LIFETIME;
-    let fadeFactor = 1 - lifeRatio;
+  if (activeWaves.length > 0) {
+    for (let wave of activeWaves) {
+      let waveAge = frameCount - wave.startTime;
+      let lifeRatio = waveAge / WAVE_LIFETIME;
+      let fadeFactor = 1 - lifeRatio;
 
-    let wcx = wave.x - imgX;
-    let wcy = wave.y - imgY;
+      let wcx = wave.x - imgX;
+      let wcy = wave.y - imgY;
 
-    let minX = max(0, int(wcx - AFFECTED_RADIUS));
-    let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
-    let minY = max(0, int(wcy - AFFECTED_RADIUS));
-    let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
+      let minX = max(0, int(wcx - AFFECTED_RADIUS));
+      let maxX = min(imgWidth - 1, int(wcx + AFFECTED_RADIUS));
+      let minY = max(0, int(wcy - AFFECTED_RADIUS));
+      let maxY = min(imgHeight - 1, int(wcy + AFFECTED_RADIUS));
 
-    for (let y = minY; y <= maxY; y++) {
-      for (let x = minX; x <= maxX; x++) {
+      for (let y = minY; y <= maxY; y++) {
+        for (let x = minX; x <= maxX; x++) {
+          let dx = x - wcx;
+          let dy = y - wcy;
+          let d = sqrt(dx * dx + dy * dy);
 
-        let dx = x - wcx;
-        let dy = y - wcy;
-        let d = sqrt(dx * dx + dy * dy);
+          if (d < AFFECTED_RADIUS) {
+            let wavePos = sin(d * 0.2 + waveAge * 0.5);
 
-        if (d < AFFECTED_RADIUS) {
+            // Merkeze yakın daha güçlü + zamanla fade
+            let strengthSpatial = 1 - d / AFFECTED_RADIUS;
+            let strength = strengthSpatial * fadeFactor;
 
-          let wavePos = sin(d * 0.2 + waveAge * 0.5);
+            // Hız bazlı güç (mouse / touch hızına göre)
+            let speedFactor = wave.speed || 1.0;
 
-          // Merkeze yakın daha güçlü + zamanla fade
-          let strengthSpatial = 1 - d / AFFECTED_RADIUS;
-          let strength = strengthSpatial * fadeFactor;
+            let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
 
-          // Hız bazlı güç (mouse / touch hızına göre)
-          let speedFactor = wave.speed || 1.0;
+            let angle = atan2(dy, dx);
 
-          let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
+            let sx = int(x - cos(angle) * displacement);
+            let sy = int(y - sin(angle) * displacement);
 
-          let angle = atan2(dy, dx);
+            if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
+              let srcIndex = (sy * imgWidth + sx) * 4;
+              let dstIndex = (y * imgWidth + x) * 4;
 
-          let sx = int(x - cos(angle) * displacement);
-          let sy = int(y - sin(angle) * displacement);
-
-          if (sx >= 0 && sx < imgWidth && sy >= 0 && sy < imgHeight) {
-            let srcIndex = (sy * imgWidth + sx) * 4;
-            let dstIndex = (y * imgWidth + x) * 4;
-
-            pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
-            pg.pixels[dstIndex + 1] = baseG.pixels[srcIndex + 1];
-            pg.pixels[dstIndex + 2] = baseG.pixels[srcIndex + 2];
-            pg.pixels[dstIndex + 3] = baseG.pixels[srcIndex + 3];
+              pg.pixels[dstIndex]     = baseG.pixels[srcIndex];
+              pg.pixels[dstIndex + 1] = baseG.pixels[srcIndex + 1];
+              pg.pixels[dstIndex + 2] = baseG.pixels[srcIndex + 2];
+              pg.pixels[dstIndex + 3] = baseG.pixels[srcIndex + 3];
+            }
           }
         }
       }
@@ -286,7 +267,7 @@ function draw() {
   pg.updatePixels();
   image(pg, imgX, imgY);
 
-  // PAINT modunda geri ok çiz
+  // Her durumda (dalga olsa da olmasa da) geri ok butonunu çiz
   drawBackButton();
 }
 
@@ -348,18 +329,17 @@ function touchMoved() {
   return false;
 }
 
-// Menü tıklama / geri ok
+// Menü tıklama + geri ok
 function mousePressed() {
   if (mode === "menu") {
     handleMenuClick(mouseX, mouseY);
     return false;
   } else if (mode === "paint") {
-    // Geri ok'a basıldıysa menüye dön
-    if (isOverBackButton(mouseX, mouseY)) {
+    // Geri oka tıklanırsa menüye dön
+    if (isInsideBackButton(mouseX, mouseY)) {
       mode = "menu";
       activeWaves = [];
       lastBrushX = null;
-      lastBrushY = null;
       return false;
     }
   }
@@ -373,11 +353,10 @@ function touchStarted() {
     }
   } else if (mode === "paint") {
     let t = touches[0];
-    if (t && isOverBackButton(t.x, t.y)) {
+    if (t && isInsideBackButton(t.x, t.y)) {
       mode = "menu";
       activeWaves = [];
       lastBrushX = null;
-      lastBrushY = null;
       return false;
     }
   }
