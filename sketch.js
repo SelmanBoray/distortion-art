@@ -5,8 +5,8 @@ let imgWidth, imgHeight;
 // Dalga ayarları
 let AFFECTED_RADIUS = 30;
 let WAVE_STRENGTH = 15;
-const WAVE_LIFETIME = 60;   // 1 sn
-const MAX_WAVES = 300;      // Bellek / FPS koruması
+const WAVE_LIFETIME = 40;   // 1 sn
+const MAX_WAVES = 20;      // Bellek / FPS koruması
 const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
 // Brush için son pozisyon
