@@ -6,7 +6,7 @@ let imgWidth, imgHeight;
 let AFFECTED_RADIUS = 50;
 let WAVE_STRENGTH = 15;
 const WAVE_LIFETIME = 40;   // 1 sn
-const MAX_WAVES = 30;      // Bellek / FPS koruması
+const MAX_WAVES = 30;       // Bellek / FPS koruması
 const BRUSH_SPACING = 6;    // Dalgalar arası mesafe (brush efekti)
 
 // Brush için son pozisyon
@@ -17,22 +17,39 @@ let activeWaves = [];
 let baseG;
 let pg;
 
-// ---- Mod ve resimler ----
+// ---- Mod ----
 let mode = "menu";  // "menu" veya "paint"
-let imgMaymun, imgLeopar, imgGeyik;
+
+// ---- Görsel katalogu (10 adet) ----
+const ANIMALS = [
+  { label: "Addaks", file: "addaks.jpg", img: null },
+  { label: "Amerika Kaya İguanası", file: "amerika_kaya_iguanasi.jpg", img: null },
+  { label: "Amur Leoparı", file: "amur_leopari.jpg", img: null },
+  { label: "Bulutlu Leopar", file: "bulutlu_leopar.jpg", img: null },
+  { label: "Cava Gergedanı", file: "cava_gergedani.jpg", img: null },
+  { label: "Dağ Gorili", file: "dag_gorili.jpg", img: null },
+  { label: "Penguen", file: "penguen.jpg", img: null },
+  { label: "Sumatra Fili", file: "sumatra_fili.jpg", img: null },
+  { label: "Vaquita", file: "vaquita.jpg", img: null },
+  { label: "Karayip Manatisi", file: "karayip_manatisi.jpg", img: null },
+];
+
+// Grid ayarları
+const GRID_COLS = 2;
+const GRID_ROWS = 5;
 
 // Geri ok butonu için ayarlar
 const BACK_SIZE = 50;
 const BACK_MARGIN = 20;
 
 function preload() {
-  // 3 resmi de önceden yükle
-  imgMaymun  = loadImage('kucukMaymun.jpg');
-  imgLeopar  = loadImage('kucukLeopar.jpg');
-  imgGeyik   = loadImage('kucukGeyik.jpg');
+  // Tüm görselleri yükle
+  for (let a of ANIMALS) {
+    a.img = loadImage(a.file);
+  }
 
-  // Varsayılan olarak maymunu seç
-  img = imgMaymun;
+  // Varsayılan: ilk görsel
+  img = ANIMALS[0].img;
 }
 
 function setup() {
@@ -78,7 +95,7 @@ function setupImageBuffers() {
   lastBrushY = null;
 }
 
-// ---- MENU ÇİZME ----
+// ---- MENU ÇİZME (2x5 GRID) ----
 function drawMenu() {
   background(0);
 
@@ -86,94 +103,101 @@ function drawMenu() {
   noStroke();
   fill(255);
   textSize(32);
-  text("Bir görsel seç:", width / 2, height * 0.2);
+  text("Bir görsel seç:", width / 2, height * 0.12);
 
-  let buttonWidth = min(width * 0.6, 400);
-  let buttonHeight = 60;
-  let gap = 20;
-  let totalHeight = 3 * buttonHeight + 2 * gap;
-  let startY = height / 2 - totalHeight / 2;
+  // Grid alanı
+  const top = height * 0.18;
+  const bottom = height * 0.92;
+  const left = width * 0.10;
+  const right = width * 0.90;
 
-  // Ortak stil
-  textSize(24);
+  const gridW = right - left;
+  const gridH = bottom - top;
 
-  // 1) Goril (eski Maymun)
-  let bx = width / 2 - buttonWidth / 2;
-  let by = startY;
-  fill(40);
-  rect(bx, by, buttonWidth, buttonHeight, 10);
-  fill(255);
-  text("Goril", width / 2, by + buttonHeight / 2);
+  const cellW = gridW / GRID_COLS;
+  const cellH = gridH / GRID_ROWS;
 
-  // 2) Leopar
-  by += buttonHeight + gap;
-  fill(40);
-  rect(bx, by, buttonWidth, buttonHeight, 10);
-  fill(255);
-  text("Leopar", width / 2, by + buttonHeight / 2);
+  // Hücre iç padding
+  const pad = min(cellW, cellH) * 0.10;
 
-  // 3) Antilop (eski Geyik)
-  by += buttonHeight + gap;
-  fill(40);
-  rect(bx, by, buttonWidth, buttonHeight, 10);
-  fill(255);
-  text("Antilop", width / 2, by + buttonHeight / 2);
+  textSize(16);
+  for (let i = 0; i < ANIMALS.length; i++) {
+    const r = floor(i / GRID_COLS);
+    const c = i % GRID_COLS;
+
+    const x = left + c * cellW;
+    const y = top + r * cellH;
+
+    // Kart arkaplan
+    fill(40);
+    rect(x + pad, y + pad, cellW - 2 * pad, cellH - 2 * pad, 12);
+
+    // Preview görsel (kartın üst kısmı)
+    const imgBoxX = x + pad * 2;
+    const imgBoxY = y + pad * 2;
+    const imgBoxW = cellW - 4 * pad;
+    const imgBoxH = (cellH - 4 * pad) * 0.68;
+
+    const aimg = ANIMALS[i].img;
+
+    // contain-fit çizim
+    const s = min(imgBoxW / aimg.width, imgBoxH / aimg.height);
+    const dw = aimg.width * s;
+    const dh = aimg.height * s;
+
+    image(aimg, imgBoxX + (imgBoxW - dw) / 2, imgBoxY + (imgBoxH - dh) / 2, dw, dh);
+
+    // Etiket
+    fill(255);
+    const labelY = imgBoxY + imgBoxH + (cellH - 4 * pad - imgBoxH) / 2;
+    text(ANIMALS[i].label, x + cellW / 2, labelY);
+  }
 }
 
-// Menü tıklama / dokunma kontrolü
+// Menü tıklama / dokunma kontrolü (2x5)
 function handleMenuClick(px, py) {
-  let buttonWidth = min(width * 0.6, 400);
-  let buttonHeight = 60;
-  let gap = 20;
-  let totalHeight = 3 * buttonHeight + 2 * gap;
-  let startY = height / 2 - totalHeight / 2;
-  let bx = width / 2 - buttonWidth / 2;
+  const top = height * 0.18;
+  const bottom = height * 0.92;
+  const left = width * 0.10;
+  const right = width * 0.90;
 
-  // 1) Goril
-  let by1 = startY;
-  // 2) Leopar
-  let by2 = by1 + buttonHeight + gap;
-  // 3) Antilop
-  let by3 = by2 + buttonHeight + gap;
+  // grid dışında tıklandıysa çık
+  if (px < left || px > right || py < top || py > bottom) return;
 
-  // Bir butonun içine tıklandı mı?
-  function inside(bxLocal, byLocal) {
-    return px >= bxLocal && px <= bxLocal + buttonWidth &&
-           py >= byLocal && py <= byLocal + buttonHeight;
-  }
+  const gridW = right - left;
+  const gridH = bottom - top;
 
-  if (inside(bx, by1)) {
-    img = imgMaymun;
-  } else if (inside(bx, by2)) {
-    img = imgLeopar;
-  } else if (inside(bx, by3)) {
-    img = imgGeyik;
-  } else {
-    return; // Hiçbirine tıklanmadıysa çık
-  }
+  const cellW = gridW / GRID_COLS;
+  const cellH = gridH / GRID_ROWS;
 
-  // Birini seçtiysek:
-  setupImageBuffers(); // Seçilen görsele göre buffer'ları yeniden hazırla
-  mode = "paint";      // Artık fırça/dalga moduna geç
+  const c = floor((px - left) / cellW);
+  const r = floor((py - top) / cellH);
+
+  if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) return;
+
+  const idx = r * GRID_COLS + c;
+  if (idx < 0 || idx >= ANIMALS.length) return;
+
+  // Seç
+  img = ANIMALS[idx].img;
+
+  setupImageBuffers();
+  mode = "paint";
 }
 
 // ---- GERİ OK BUTONU ----
 function drawBackButton() {
   push();
-  // Arka plan kutusu
   noStroke();
-  fill(0, 160); // hafif transparan siyah
+  fill(0, 160);
   rect(BACK_MARGIN, BACK_MARGIN, BACK_SIZE, BACK_SIZE, 14);
 
-  // Ok ikonu
   translate(BACK_MARGIN + BACK_SIZE / 2, BACK_MARGIN + BACK_SIZE / 2);
   stroke(255);
   strokeWeight(3);
   noFill();
 
-  // Gövde çizgisi
   line(8, 0, -4, 0);
-  // Okun uç kısmı (sola bakan)
   line(-4, 0, 2, -6);
   line(-4, 0, 2, 6);
 
@@ -196,7 +220,6 @@ function draw() {
     return;
   }
 
-  // ---- BURADAN SONRASI PAINT MODU (ESKİ DAVRANIŞ) ----
   background(0);
 
   // Ömrü biten dalgaları temizle
@@ -235,13 +258,10 @@ function draw() {
           if (d < AFFECTED_RADIUS) {
             let wavePos = sin(d * 0.2 + waveAge * 0.5);
 
-            // Merkeze yakın daha güçlü + zamanla fade
             let strengthSpatial = 1 - d / AFFECTED_RADIUS;
             let strength = strengthSpatial * fadeFactor;
 
-            // Hız bazlı güç (mouse / touch hızına göre)
             let speedFactor = wave.speed || 1.0;
-
             let displacement = wavePos * WAVE_STRENGTH * strength * speedFactor;
 
             let angle = atan2(dy, dx);
@@ -267,30 +287,23 @@ function draw() {
   pg.updatePixels();
   image(pg, imgX, imgY);
 
-  // Her durumda (dalga olsa da olmasa da) geri ok butonunu çiz
   drawBackButton();
 }
 
 function addBrushWave(px, py) {
-  // Görselin dışındaysa wave ekleme
   if (!(px > imgX && px < imgX + imgWidth &&
         py > imgY && py < imgY + imgHeight)) {
     return;
   }
 
-  // İlk brush noktasıysa direkt ekle
   if (lastBrushX === null || lastBrushY === null) {
     lastBrushX = px;
     lastBrushY = py;
   }
 
-  // Aralık kontrolü – brush gibi görünmesini sağlayan kısım
   let d = dist(px, py, lastBrushX, lastBrushY);
-  if (d < BRUSH_SPACING) {
-    return; // çok yakın, yeni wave ekleme
-  }
+  if (d < BRUSH_SPACING) return;
 
-  // Hız hesapla (d ne kadar büyükse, o kadar sert)
   let speedFactor = map(d, 0, 50, 0.5, 2.0);
   speedFactor = constrain(speedFactor, 0.5, 2.0);
 
@@ -301,7 +314,6 @@ function addBrushWave(px, py) {
     speed: speedFactor
   });
 
-  // Çok wave olursa eskileri at
   if (activeWaves.length > MAX_WAVES) {
     activeWaves.splice(0, activeWaves.length - MAX_WAVES);
   }
@@ -310,7 +322,6 @@ function addBrushWave(px, py) {
   lastBrushY = py;
 }
 
-// Mouse ile brush
 function mouseMoved() {
   if (mode === "paint") {
     addBrushWave(mouseX, mouseY);
@@ -318,7 +329,6 @@ function mouseMoved() {
   return false;
 }
 
-// Dokunarak brush (iPad)
 function touchMoved() {
   if (mode === "paint") {
     let t = touches[0];
@@ -329,17 +339,16 @@ function touchMoved() {
   return false;
 }
 
-// Menü tıklama + geri ok
 function mousePressed() {
   if (mode === "menu") {
     handleMenuClick(mouseX, mouseY);
     return false;
   } else if (mode === "paint") {
-    // Geri oka tıklanırsa menüye dön
     if (isInsideBackButton(mouseX, mouseY)) {
       mode = "menu";
       activeWaves = [];
       lastBrushX = null;
+      lastBrushY = null;
       return false;
     }
   }
@@ -357,13 +366,13 @@ function touchStarted() {
       mode = "menu";
       activeWaves = [];
       lastBrushX = null;
+      lastBrushY = null;
       return false;
     }
   }
   return false;
 }
 
-// Dokunma / mouse bırakılınca brush başlangıcını resetle
 function mouseReleased() {
   lastBrushX = null;
   lastBrushY = null;
